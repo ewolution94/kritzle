@@ -1,0 +1,75 @@
+name: CI
+
+# Runs on pull requests, and is the gate docker-publish.yml calls before it publishes
+# anything, so the checks guarding a PR and the checks guarding a deploy can't drift apart.
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches the Dockerfile.
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # The built page and the game, served by the real production server.
+      - name: Smoke test the production server
+        run: |
+          PORT=6199 node server/server.mjs &
+          for _ in $(seq 1 20); do curl -sf http://127.0.0.1:6199/healthz && break; sleep 0.5; done
+          base=http://127.0.0.1:6199
+          curl -sf $base/ | grep -q '<title>Kritzle</title>'
+          curl -sf $base/KXPT | grep -q '<title>Kritzle</title>'
+          curl -sf $base/KXPT/screen | grep -q '<title>Kritzle</title>'
+          curl -sI $base/ | grep -qi "content-security-policy: default-src 'self'"
+          curl -sI $base/ | grep -qi "cache-control: no-cache"
+          curl -sf $base/manifest.webmanifest | grep -q '"name": "Kritzle"'
+          curl -sf -o /dev/null $base/sw.js
+          curl -sf -o /dev/null $base/og.png
+          curl -sf -o /dev/null $base/icon.svg
+          asset=$(curl -s $base/ | grep -o '/assets/[^"]*\.js' | head -1)
+          curl -sI "$base$asset" | grep -qi 'cache-control: public, max-age=31536000, immutable'
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/assets/missing.js)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST $base/)" = 405
+          # The API never falls through to the page.
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/nothing)" = 404
+          curl -sf $base/api/config | grep -q '"packs":\["everyday"'
+          # A room, a second player, a bot, the start, and the room's live stream in its first turn.
+          room=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI","avatar":[1,2,3,4,5]}' $base/api/rooms)
+          code=$(echo "$room" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          token=$(echo "$room" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          curl -sf -X POST -H 'content-type: application/json' --data '{"name":"Zwei"}' $base/api/rooms/$code/join | grep -q '"player"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-kritzle-token: $token" --data '{"add":true}' $base/api/rooms/$code/bot)" = 204
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-kritzle-token: $token" --data '{}' $base/api/rooms/$code/start)" = 204
+          curl -s -N --max-time 2 "$base/api/rooms/$code/events" | grep -q '"phase":"choose"'
+          # The gallery opens only once the game is over.
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/rooms/$code/gallery)" = 409
+          # The Census forwarder is wired in; without KRITZLE_CENSUS it answers locally.
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/_e.js)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST --data '{}' $base/_e)" = 204
