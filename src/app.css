@@ -240,22 +240,49 @@ button {
   font-weight: 600;
 }
 
-/* The logo: Caveat Brush on the highlighter, redrawn a few times a second like a cartoon frame
-   (the filters are in index.html). Still during a turn, and under reduced motion. */
+/* The logo (Logo.svelte): Caveat Brush on the highlighter, redrawn a few times a second like a
+   cartoon frame (the filters are in index.html). Three copies, each drawn once through its own
+   filter, are stacked on their own layers and stepped by opacity: animating `filter: url()` itself
+   restyled the page every frame and redrew the turbulence seven times a second. Still, and
+   unfiltered, during a turn and under reduced motion. */
 .logo {
+  display: inline-grid;
   font: 400 30px/1 var(--display);
-  padding: 0 4px;
-  background: linear-gradient(transparent 52%, var(--hi) 52% 88%, transparent 88%);
-  animation: boil 0.42s steps(1) infinite;
   white-space: nowrap;
 }
-@keyframes boil {
-  0% { filter: url(#boil0); }
-  33% { filter: url(#boil1); }
-  66% { filter: url(#boil2); }
+.logo > span {
+  grid-area: 1 / 1;
+  will-change: opacity;
 }
-:root[data-playing] .logo {
+.logo .ink {
+  padding: 0 4px;
+  background: linear-gradient(transparent 52%, var(--hi) 52% 88%, transparent 88%);
+}
+.logo > span:nth-child(1) {
+  animation: boil 0.42s steps(1) infinite;
+}
+.logo > span:nth-child(2) {
+  animation: boil 0.42s -0.28s steps(1) infinite;
+}
+.logo > span:nth-child(3) {
+  animation: boil 0.42s -0.14s steps(1) infinite;
+}
+.logo > span:nth-child(1) .ink { filter: url(#boil0); }
+.logo > span:nth-child(2) .ink { filter: url(#boil1); }
+.logo > span:nth-child(3) .ink { filter: url(#boil2); }
+@keyframes boil {
+  0% { opacity: 1; }
+  33.33% { opacity: 0; }
+  100% { opacity: 0; }
+}
+:root[data-playing] .logo > span {
   animation: none;
+}
+:root[data-playing] .logo > span:nth-child(n + 2) {
+  visibility: hidden;
+}
+:root[data-playing] .logo .ink {
+  filter: none;
 }
 
 /* While the page scrolls, rows slide under a resting cursor; their hover states wait until it
@@ -274,7 +301,13 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .logo {
-    animation: none;
+  .logo > span {
+    animation: none !important;
+  }
+  .logo > span:nth-child(n + 2) {
+    visibility: hidden;
+  }
+  .logo > span:nth-child(n) .ink {
+    filter: none;
   }
 }

@@ -1,4 +1,8 @@
-<!-- The turn's clock: seconds left, and a ring that empties. Red for the last ten seconds. -->
+<!--
+  The turn's clock: seconds left, and a ring that empties in steps of a quarter second (no transition:
+  one would keep the page restyling every frame for a step too small to see). Red for the last ten
+  seconds.
+-->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../lib/i18n.svelte';
@@ -51,7 +55,6 @@
   .arc {
     stroke: var(--ink);
     stroke-linecap: round;
-    transition: stroke-dasharray 0.25s linear;
   }
   .late .arc {
     stroke: var(--bad);

@@ -7,6 +7,7 @@
   import { onMount } from 'svelte';
   import { api, type ChainEntry } from '../lib/api';
   import { num, t, type Key } from '../lib/i18n.svelte';
+  import Logo from './Logo.svelte';
   import Picture from './Picture.svelte';
   import { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
@@ -70,7 +71,7 @@
   {:else if view.phase === 'lobby'}
     <div class="lobby">
       <div class="join">
-        <span class="logo">Kritzle</span>
+        <Logo />
         <div class="qr box"><Qr url={link} /></div>
         <span class="label">{t('screenScan')}</span>
         <span class="code display">{code}</span>
@@ -231,8 +232,12 @@
     align-items: center;
     gap: 1.6vh;
   }
-  .join .logo {
+  .join :global(.logo) {
     font-size: 8vh;
+  }
+  /* A flex item, the logo was a block here: its highlighter spans the line box, not the glyphs. */
+  .join :global(.logo .ink) {
+    display: block;
   }
   .qr {
     width: 32vh;

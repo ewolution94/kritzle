@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { t } from '../lib/i18n.svelte';
+  import Logo from './Logo.svelte';
   import Settings from './Settings.svelte';
 
   let { code }: { code: string | null } = $props();
@@ -23,7 +24,7 @@
 </script>
 
 <header class="bar" class:scrolled>
-  <a class="home" href="/" aria-label="Kritzle"><span class="logo">Kritzle</span></a>
+  <a class="home" href="/" aria-label="Kritzle"><Logo /></a>
   <div class="end">
     {#if code}
       <span class="tape code" aria-label="{t('code')} {code}">{code}</span>
