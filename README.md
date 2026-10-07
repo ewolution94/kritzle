@@ -79,8 +79,9 @@ afternoon meeting, mostly played on a video call. Live at
 ## How it works
 
 - **The server keeps the game.** Rooms live in memory (`server/game.mjs`): players, the turn order,
-  the word, the hints, the guesses, the drawing. A deploy ends running games; an empty room is
-  forgotten after half an hour.
+  the word, the hints, the guesses, the drawing. A deploy ends running games; a game with no one
+  online for two minutes ends (bots don't play on for no one), and an empty room is forgotten after
+  half an hour.
 - **SSE down, JSON moves up** (`server/api.mjs`). Each page holds one `EventSource` with named events:
   `view` (the room as this page may see it), `canvas` (the whole drawing), `ink` (what the drawer
   added), `chat` (lines this page may read) and `react`. Everything else is a small POST with the

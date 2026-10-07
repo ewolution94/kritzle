@@ -96,6 +96,8 @@ const DRAWER_GRACE = 20_000;
 const HOST_GRACE = 15_000;
 const LOBBY_GRACE = 60_000;
 const EMPTY_TTL = 30 * 60_000;
+/** A game with no human online for this long ends, so bots never play on for no one. */
+const UNWATCHED_MS = 2 * 60_000;
 const IDLE_TTL = 4 * 60 * 60_000;
 const CHAT_WINDOW = 3_000;
 const CHAT_MAX = 5;
@@ -1500,6 +1502,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         code,
         created: clock.now(),
         touched: clock.now(),
+        /** Since when no human has been online during a game (null while someone is). */
+        unwatchedSince: null,
         version: 0,
         host: '',
         players: new Map(),
@@ -1825,7 +1829,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
     /**
      * Housekeeping, every few seconds: hand the host's seat on, drop people who closed the page
-     * in the lobby, end a turn whose drawer is gone, forget empty rooms, and catch a lost timer.
+     * in the lobby, end a turn whose drawer is gone, end a game nobody is watching, forget empty
+     * rooms, and catch a lost timer.
      */
     tick() {
       const now = clock.now();
@@ -1836,6 +1841,19 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           for (const s of r.subscribers) s.send('view', JSON.stringify({ code: r.code, phase: 'gone' }));
           rooms.delete(r.code);
           continue;
+        }
+        // Bots' moves keep a room fresh, so a game whose people all left would run to its end for
+        // no one (and only then start the empty-room clock): end it once nobody is back in time.
+        if (r.game && r.phase !== 'lobby' && r.phase !== 'final') {
+          if (online.length) r.unwatchedSince = null;
+          else {
+            r.unwatchedSince ??= now;
+            if (now - r.unwatchedSince >= UNWATCHED_MS) {
+              r.unwatchedSince = null;
+              finish(r);
+              continue;
+            }
+          }
         }
         const host = r.players.get(r.host);
         if (host && host.online === 0 && host.offlineSince !== null && now - host.offlineSince >= HOST_GRACE) handOver(r);

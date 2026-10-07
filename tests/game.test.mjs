@@ -234,3 +234,36 @@ test('blitz loads its preset; likes and reactions', () => {
   games.act(r.code, fan.token, 'react', { e: 2 });
   assert.equal(r.pages[0].reacts.length, 1, 'reactions are rate-limited');
 });
+
+test('a game nobody is watching ends after two minutes, so bots never play on for no one', () => {
+  const { clock, games } = setup();
+  const host = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0] });
+  let page = watch(games, host.code, host.player);
+  games.act(host.code, host.token, 'settings', { rounds: 10 });
+  games.act(host.code, host.token, 'bot', { add: true });
+  games.act(host.code, host.token, 'bot', { add: true });
+  games.act(host.code, host.token, 'start');
+  // The big screen keeps watching, but it isn't a player.
+  const screen = watch(games, host.code);
+  const wait = (ms) => {
+    for (let t = 0; t < ms; t += 5000) {
+      clock.advance(5000);
+      games.tick();
+    }
+  };
+  page.close();
+  wait(110_000);
+  assert.notEqual(screen.view.phase, 'final', 'not before two minutes');
+  // Back within the two minutes: the count starts again.
+  page = watch(games, host.code, host.player);
+  wait(5000);
+  page.close();
+  wait(110_000);
+  assert.notEqual(screen.view.phase, 'final', 'the count started again');
+  wait(15_000);
+  assert.equal(screen.view.phase, 'final');
+  assert.ok(screen.view.final, 'the end, with its standings');
+  // Over, the game stays put for its gallery until the empty-room clock forgets it.
+  wait(60_000);
+  assert.equal(screen.view.phase, 'final');
+});
