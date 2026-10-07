@@ -36,11 +36,25 @@ afternoon meeting, mostly played on a video call. Live at
 - **The end:** the podium, awards (most liked, fastest guess, so close, the word nobody got), and the
   gallery: every drawing of the game replays as a timelapse and downloads as a PNG, or the whole game
   as one image. Drawings live only in the server's memory: the downloads are the only copies.
-- **Modes and settings** (the host, in the lobby): Classic or Blitz (two rounds of 45 seconds, one
-  word to choose, hints sooner); 2 to 10 rounds, 30 to 240 seconds, words to choose from, 0 to 5
+- **Fälscher (Forger):** everyone sees the word except the forger, who only gets its theme. In
+  turns, each player adds one stroke in their own colour to one shared drawing, once or more round
+  the table; then everyone points at the forger. A tie lets the forger escape; caught, the forger
+  can still name the word. Points: 800 for escaping, 500 for naming the word when caught, otherwise
+  300 for every artist and 100 more for each one who voted for the forger. Three players or more.
+- **Teamduell (Team duel):** two to four teams; each team's drawer draws the same word at the same
+  moment on the team's own canvas, and only the team sees it and its guesses. The first team to get
+  it scores most (the same formula, by team); the guesser and the drawer share the team's points. At
+  the end of a turn everyone sees every team's drawing, and the big screen shows them side by side.
+- **Würze (spice)** for Classic, Blitz and Team duel, one for every turn or a random one each turn:
+  Blind (your strokes vanish for you when the pen lifts), Ein Strich (one stroke), Wenig Tinte (an
+  ink bar that empties), Drei Farben (three random colours), Spiegel (a mirror image follows each
+  stroke) and Zitterhand (a shaky hand). The server holds the drawer to one stroke, the ink and the
+  colours.
+- **Modes and settings** (the host, in the lobby): Classic, Blitz (two rounds of 45 seconds, one
+  word to choose, hints sooner), Fälscher or Team duel; 2 to 10 rounds, 30 to 240 seconds, words to choose from, 0 to 5
   hints; normal, hidden (no blanks until the first hint) or combination words (two at once, both to
   guess); the words' language (German or English), difficulty and themes (Alltag, Tiere, Essen,
-  Orte, Berufe, Büro, Sport, Natur, Dinge); your own words, optionally only those (the others only
+  Orte, Berufe, Büro, Sport, Natur, Dinge, Reisen, Hobbys, Fantasie); your own words, optionally only those (the others only
   see how many there are); near-miss hints on or off; bots to try it out. A setting answers the tap
   at once.
 - **The big screen** (`/KXPT/screen`): the game for a projector or the screen shared in a call,
@@ -67,7 +81,7 @@ afternoon meeting, mostly played on a video call. Live at
   400 × 300 grid from its own rendering and sends it run-length encoded; every page paints that.
 - **Bots** play in the server: random squiggles when they draw, a miss and, three times in four, the
   right word. They're there to try it alone and for the tests.
-- **Words:** about 400 per language, written for the game, by theme and difficulty
+- **Words:** about 550 per language, written for the game, by theme and difficulty
   (`server/words/de.mjs`, `en.mjs`); work-safe.
 - **Visit counts:** `/_e.js` and `/_e` are forwarded to Census over the shared Docker network
   (`server/census.mjs`), adding only `X-Site: kritzle`. Without `KRITZLE_CENSUS` (local runs) the

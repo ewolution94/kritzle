@@ -158,4 +158,56 @@ export default {
       "Raumschiff", "Satellit", "Drohne", "Reißverschluss", "Sicherheitsnadel", "Lesezeichen",
     ],
   },
+  travel: {
+    easy: [
+      "Koffer|Reisekoffer", "Reisepass|Pass", "Landkarte", "Hotel", "Sonnenbrille", "Badehose",
+      "Postkarte", "Liegestuhl", "Sonnenschirm", "Taxi", "Bus", "Fähre", "Wohnwagen",
+      "Schlafsack", "Pyramide",
+    ],
+    medium: [
+      "Campingplatz|Zeltplatz", "Lagerfeuer", "Fahrkarte|Fahrschein|Ticket", "Sandburg",
+      "Sonnencreme", "Wanderstock", "Reiseführer", "Kreuzfahrtschiff", "Hängebrücke", "Souvenir",
+      "Reisebus", "Strandkorb", "Wegweiser", "Rettungsring", "Gepäckwagen",
+    ],
+    hard: [
+      "Urlaub", "Sonnenbrand", "Fernweh", "Heimweh", "Jetlag", "Kofferpacken", "Passkontrolle",
+      "Zeitverschiebung", "Zwischenstopp", "Verspätung", "Stadtrundfahrt", "Rundreise",
+      "Wanderung|Wandern", "Reisefieber", "Backpacker|Rucksacktourist", "Mietwagen",
+    ],
+  },
+  hobbies: {
+    easy: [
+      "Wollknäuel|Wolle", "Stricknadel", "Pinsel", "Staffelei", "Schallplatte", "Mundharmonika",
+      "Trommel", "Geige|Violine", "Flöte", "Domino", "Briefmarke", "Perlenkette", "Buntstift",
+      "Kopfhörer", "Ukulele",
+    ],
+    medium: [
+      "Nähmaschine", "Modelleisenbahn", "Teleskop|Fernrohr", "Seifenblasen", "Brettspiel",
+      "Töpferscheibe", "Vogelhaus", "Fotoalbum", "Origami", "Kreuzworträtsel", "Malkasten",
+      "Häkelnadel", "Plattenspieler", "Zeichenblock", "Hochbeet",
+    ],
+    hard: [
+      "Stricken", "Töpfern", "Basteln", "Gartenarbeit", "Sammeln", "Tanzen", "Singen", "Malen",
+      "Lesen", "Häkeln", "Nähen", "Modellbau", "Heimwerken", "Spieleabend", "Vogelbeobachtung",
+      "Fotografieren",
+    ],
+  },
+  fantasy: {
+    easy: [
+      "Drache", "Einhorn", "Fee", "Meerjungfrau", "Zauberstab", "Hexe", "Prinzessin", "Riese",
+      "Zwerg", "Gespenst|Geist", "Zauberhut", "Kristallkugel", "Troll", "Kobold",
+      "Schatztruhe|Schatzkiste",
+    ],
+    medium: [
+      "Schlossgespenst|Burggespenst", "Schatzkarte", "Zaubertrank", "Hexenbesen|Zauberbesen",
+      "Fliegender Teppich|Zauberteppich|Flugteppich", "Zauberspiegel", "Drachenei", "Feenflügel",
+      "Hexenhaus", "Märchenbuch", "Wunderlampe", "Märchenwald", "Feenstaub", "Seeungeheuer",
+      "Wolkenschloss",
+    ],
+    hard: [
+      "Schatzsuche", "Zeitreise", "Verwandlung", "Fabelwesen", "Hexenkessel", "Flaschengeist",
+      "Zauberspruch", "Wunschbrunnen", "Tarnkappe", "Unsichtbarkeit", "Schlaraffenland",
+      "Märchenstunde", "Gedankenlesen", "Zaubertrick", "Luftschloss",
+    ],
+  },
 };

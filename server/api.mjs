@@ -7,7 +7,8 @@
 //   GET  /api/rooms/:code/events?p=<id>   the room for one page (SSE; below)
 //   GET  /api/rooms/:code/gallery         the finished game's drawings (once it's over)
 //   POST /api/rooms/:code/<action>        settings, start, choose, chat, ink, like, react, skip,
-//                                         rematch, bot, avatar, kick, leave
+//                                         rematch, bot, avatar, kick, leave; team, shuffle (duel);
+//                                         pass, vote, unmask (Fälscher)
 //                                         with your token in `x-kritzle-token`
 //   GET  /api/rooms/:code/events          without `p`: the same stream for the big screen
 //
@@ -29,9 +30,13 @@ import {
   DIFFICULTY_CHOICES,
   HINT_CHOICES,
   MODES,
+  LAP_CHOICES,
   REACTIONS,
   ROUND_CHOICES,
   SECOND_CHOICES,
+  SPICE_CHOICES,
+  STROKE_CHOICES,
+  TEAM_CHOICES,
   WORD_CHOICES,
   WORD_MODES,
 } from './game.mjs';
@@ -137,6 +142,10 @@ export function createApi({ games }) {
           counts,
           custom: CUSTOM_LIMITS,
           reactions: REACTIONS,
+          spices: SPICE_CHOICES,
+          teams: TEAM_CHOICES,
+          laps: LAP_CHOICES,
+          strokeSeconds: STROKE_CHOICES,
           defaults: DEFAULT_SETTINGS,
         });
         return true;

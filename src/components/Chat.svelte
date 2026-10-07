@@ -6,7 +6,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { ApiError, type ChatLine, type View } from '../lib/api';
-  import { errorText, t } from '../lib/i18n.svelte';
+  import { errorText, t, type Key } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
 
   let { room, view, compact = false }: { room: Room; view: View; compact?: boolean } = $props();
@@ -49,6 +49,8 @@
     switch (l.kind) {
       case 'guessed':
         return t('chat_guessed', { name: name(l.player) });
+      case 'team':
+        return t('chat_team', { name: name(l.player), team: t(`team_${l.text}` as Key) });
       case 'close':
         return t('chat_close', { text: l.text });
       case 'half':
@@ -76,7 +78,7 @@
         {#if l.kind === 'msg'}
           <b>{name(l.player)}:</b> {l.text}
           {#if l.private}<span class="only">{t('chatOnly')}</span>{/if}
-        {:else if l.kind === 'guessed'}
+        {:else if l.kind === 'guessed' || l.kind === 'team'}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
           {line(l)}
         {:else}
@@ -145,14 +147,16 @@
     font-size: 11px;
     color: var(--mute);
   }
-  li.guessed {
+  li.guessed,
+  li.team {
     display: flex;
     align-items: center;
     gap: 5px;
     background: var(--hi-soft);
     font-weight: 700;
   }
-  li.guessed svg {
+  li.guessed svg,
+  li.team svg {
     flex: none;
     width: 15px;
     height: 15px;

@@ -38,7 +38,7 @@
         {/if}
       </span>
       <span class="who">
-        <span class="name">{#if !strip}<span class="rank">{i + 1}.</span>{/if}{p.name}{#if p.id === view.me}<span class="you">{` (${t('you')})`}</span>{/if}</span>
+        <span class="name">{#if p.team !== null}<i class="team t{p.team}" aria-hidden="true"></i>{/if}{#if !strip}<span class="rank">{i + 1}.</span>{/if}{p.name}{#if p.id === view.me}<span class="you">{` (${t('you')})`}</span>{/if}</span>
         <span class="score">{num(p.score)}{#if p.points !== null && p.points > 0}<span class="plus">+{num(p.points)}</span>{/if}</span>
       </span>
     </li>
@@ -121,6 +121,18 @@
     white-space: nowrap;
     font: 600 14px/1.25 var(--ewo-sans);
   }
+  .team {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 5px;
+    border-radius: 50%;
+    vertical-align: 1px;
+  }
+  .t0 { background: #c9341f; }
+  .t1 { background: #2d5bd8; }
+  .t2 { background: #8a6d00; }
+  .t3 { background: #1f7a45; }
   .rank {
     margin-right: 4px;
     color: var(--mute);

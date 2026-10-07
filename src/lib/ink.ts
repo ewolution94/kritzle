@@ -18,6 +18,8 @@ export const PALETTE = [
 ];
 /** The paper; the eraser paints with it, so fills still stop at erased edges. */
 export const PAPER = 3;
+/** Würze "Wenig Tinte": the points a drawing may have (server/game.mjs → INK_BUDGET). */
+export const INK_BUDGET = 240;
 
 export type Op = (string | number | number[])[];
 type Fill = { k: 'f'; c: number; rle: number[]; t: number; img?: HTMLCanvasElement };
@@ -188,6 +190,8 @@ export function render(actions: Action[], width: number, until = Infinity) {
 /** The canvas on screen: keeps the actions and paints each op as it comes. */
 export class Board {
   actions: Action[] = [];
+  /** Würze "blind": the drawer's own sheet shows only what is being drawn right now. */
+  blind = false;
   #canvas: HTMLCanvasElement | null = null;
   #ctx: CanvasRenderingContext2D | null = null;
 
@@ -222,11 +226,19 @@ export class Board {
     const canvas = this.#canvas;
     if (!ctx || !canvas) return;
     ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
-    paintAll(ctx, this.actions);
+    if (this.blind) paper(ctx);
+    else paintAll(ctx, this.actions);
+  }
+
+  /** Blind: wipe the sheet on screen (the drawing itself stays, for everyone else). */
+  blank() {
+    this.blind = true;
+    this.redraw();
   }
 
   reset(ops: Op[] = []) {
     this.actions = toActions(ops);
+    this.blind = false;
     this.redraw();
   }
 

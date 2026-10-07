@@ -4,13 +4,16 @@
   while typing, the strip and reactions step aside and the canvas shrinks so the keyboard never
   covers it (the stage follows visualViewport: learnings/ios-and-webkit.md). On a wide screen the
   players are on the left and the chat on the right.
+
+  A team duel shows your team's canvas while it draws, and every team's at the end. Würze shows as
+  a strip of tape under the word, for everyone.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { lockScroll } from '../../vendor/ewo/elements/scroll-lock.js';
   import { ApiError, type View } from '../lib/api';
   import { MULTIPLIERS } from '../lib/words';
-  import { errorText, num, t } from '../lib/i18n.svelte';
+  import { errorText, num, t, type Key } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
   import Canvas, { type Tool } from './Canvas.svelte';
@@ -25,6 +28,7 @@
   let tool: Tool = $state('pen');
   let color = $state(0);
   let size = $state(1);
+  let inkUsed = $state(0);
   let canvas: Canvas | undefined = $state();
   let typing = $state(false);
   let settingsOpen = $state(false);
@@ -32,14 +36,17 @@
   let stage: HTMLDivElement;
 
   const turn = $derived(view.turn!);
-  const isDrawer = $derived(turn.drawer === view.me);
-  const drawer = $derived(view.players.find((p) => p.id === turn.drawer));
+  const duel = $derived(turn.kind === 'duel');
   const me = $derived(view.players.find((p) => p.id === view.me));
-  const knows = $derived(isDrawer || Boolean(me?.guessed));
+  const myTeam = $derived(duel ? (turn.teams?.find((x) => x.team === me?.team) ?? null) : null);
+  const drawerId = $derived(duel ? (myTeam?.drawer ?? null) : turn.drawer);
+  const isDrawer = $derived(Boolean(view.me) && drawerId === view.me);
+  const drawer = $derived(view.players.find((p) => p.id === drawerId));
   const isHost = $derived(view.me === view.host);
   const drawingNow = $derived(isDrawer && turn.phase === 'draw');
   const slots = $derived(turn.pattern ? [...turn.pattern] : []);
   const letters = $derived(slots.filter((c) => c !== ' ' && c !== '-' && c !== '+').length);
+  const ownTeam = $derived(duel ? (me?.team ?? null) : null);
 
   onMount(() => {
     const unlock = lockScroll();
@@ -83,6 +90,17 @@
   function focusOut() {
     typing = false;
   }
+
+  const teamName = (team: number) => t(`team_${team}` as Key);
+  const ended = $derived(
+    turn.ended === 'drawer-gone'
+      ? t('ended_drawer-gone', { name: drawer?.name ?? '' })
+      : turn.ended === 'all'
+        ? t('ended_all')
+        : turn.ended === 'skip'
+          ? t('ended_skip')
+          : t('ended_time'),
+  );
 </script>
 
 {#snippet dots(difficulty: string | undefined)}
@@ -96,7 +114,10 @@
 <div class="stage" class:typing class:drawer={drawingNow} bind:this={stage}>
   <header class="top">
     <div class="status">
-      <span class="label">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}</span>
+      <span class="label">
+        {t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}
+        {#if duel && ownTeam !== null}· <span class="team-tag t{ownTeam}">{t('teamName', { name: teamName(ownTeam) })}</span>{/if}
+      </span>
       {#if turn.phase === 'choose'}
         <span class="what">{isDrawer ? t('chooseWord') : t('choosing', { name: drawer?.name ?? '' })}</span>
       {:else if turn.phase === 'reveal'}
@@ -123,8 +144,16 @@
           {@render dots(turn.difficulty)}
         </span>
       {/if}
+      {#if turn.spice && turn.phase === 'draw'}
+        <span class="tape spice" title={t(`spice_${turn.spice}_hint` as Key)}>{t('spiceIs', { name: t(`spice_${turn.spice}` as Key) })}</span>
+      {/if}
     </div>
     <div class="end">
+      {#if duel && view.teams}
+        <span class="scores" aria-label={t('teamStandings')}>
+          {#each view.teams as score, i (i)}<span class="score t{i}">{num(score)}</span>{/each}
+        </span>
+      {/if}
       {#if isHost && (turn.phase === 'draw' || turn.phase === 'choose')}
         <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={() => act('skip')}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" /><path d="M18 5v14" /></svg>
@@ -146,7 +175,18 @@
 
   <div class="center">
     <div class="sheet-box">
-      <Canvas bind:this={canvas} {room} {turn} drawing={drawingNow} {tool} {color} {size}>
+      <Canvas
+        bind:this={canvas}
+        {room}
+        {turn}
+        team={ownTeam}
+        drawing={drawingNow}
+        {tool}
+        {color}
+        {size}
+        spice={drawingNow ? (turn.spice ?? null) : null}
+        oninkused={(n) => (inkUsed = n)}
+      >
         {#if turn.phase === 'choose'}
           <div class="overlay">
             {#if isDrawer && turn.choices}
@@ -168,7 +208,7 @@
         {:else if turn.phase === 'reveal'}
           <div class="overlay soft">
             <div class="reveal box">
-              <span class="tape">{turn.ended === 'drawer-gone' ? t('ended_drawer-gone', { name: drawer?.name ?? '' }) : turn.ended === 'all' ? t('ended_all') : turn.ended === 'skip' ? t('ended_skip') : t('ended_time')}</span>
+              <span class="tape">{ended}</span>
               <span class="label">{t('wordWas')}</span>
               <span class="big display hl">{turn.word}</span>
               {#if !turn.guessed}<span class="none">{t('nobodyGotIt')}</span>{/if}
@@ -178,8 +218,19 @@
       </Canvas>
     </div>
 
+    {#if duel && turn.phase === 'reveal' && turn.teams}
+      <div class="others">
+        {#each turn.teams.filter((x) => x.team !== ownTeam) as x (x.team)}
+          <figure class="mini">
+            <Canvas {room} {turn} team={x.team} />
+            <figcaption><span class="team-tag t{x.team}">{teamName(x.team)}</span>{x.done ? ` +${num(x.points ?? 0)}` : ''}</figcaption>
+          </figure>
+        {/each}
+      </div>
+    {/if}
+
     {#if drawingNow}
-      <Dock bind:tool bind:color bind:size onundo={() => canvas?.undo()} onclear={() => canvas?.clear()} />
+      <Dock bind:tool bind:color bind:size spice={turn.spice ?? null} palette={turn.palette ?? null} {inkUsed} onundo={() => canvas?.undo()} onclear={() => canvas?.clear()} />
     {:else if view.me && turn.phase !== 'choose'}
       <div class="reacts">
         {#each view.reactions as e, i (e)}
@@ -536,5 +587,55 @@
     .word {
       font-size: 32px;
     }
+  }
+
+  .spice {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    transform: rotate(-2deg);
+  }
+  .team-tag {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 5px;
+    color: #ffffff;
+    font-weight: 700;
+  }
+  .scores {
+    display: flex;
+    gap: 4px;
+  }
+  .score {
+    padding: 3px 7px;
+    border-radius: 6px;
+    color: #ffffff;
+    font: 700 12px/1.2 var(--ewo-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .t0 { background: #c9341f; }
+  .t1 { background: #2d5bd8; }
+  .t2 { background: #8a6d00; }
+  .t3 { background: #1f7a45; }
+  .others {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .mini {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: min(30%, 150px);
+  }
+  .mini :global(.sheet::before),
+  .mini :global(.sheet::after) {
+    display: none;
+  }
+  .mini figcaption {
+    font: 600 12px/1.2 var(--ewo-sans);
   }
 </style>

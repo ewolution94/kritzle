@@ -68,6 +68,22 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-kritzle-token: $token" --data '{"add":true}' $base/api/rooms/$code/bot)" = 204
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H "x-kritzle-token: $token" --data '{}' $base/api/rooms/$code/start)" = 204
           curl -s -N --max-time 2 "$base/api/rooms/$code/events" | grep -q '"phase":"choose"'
+          # Fälscher with two bots reaches its first stroke; a team duel starts with teams.
+          f=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI"}' $base/api/rooms)
+          fcode=$(echo "$f" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          ftoken=$(echo "$f" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          for body in '{"mode":"forger"}'; do curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $ftoken" --data "$body" $base/api/rooms/$fcode/settings; done
+          for _ in 1 2; do curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $ftoken" --data '{"add":true}' $base/api/rooms/$fcode/bot; done
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $ftoken" --data '{}' $base/api/rooms/$fcode/start
+          curl -s -N --max-time 2 "$base/api/rooms/$fcode/events" | grep -q '"phase":"forge"'
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $ftoken" --data '{}' $base/api/rooms/$fcode/leave
+          d=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI"}' $base/api/rooms)
+          dcode=$(echo "$d" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          dtoken=$(echo "$d" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $dtoken" --data '{"mode":"duel"}' $base/api/rooms/$dcode/settings
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $dtoken" --data '{"add":true}' $base/api/rooms/$dcode/bot
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $dtoken" --data '{}' $base/api/rooms/$dcode/start
+          curl -s -N --max-time 2 "$base/api/rooms/$dcode/events" | grep -q '"kind":"duel"'
           # The gallery opens only once the game is over.
           test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/rooms/$code/gallery)" = 409
           # The Census forwarder is wired in; without KRITZLE_CENSUS it answers locally.

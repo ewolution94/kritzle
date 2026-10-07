@@ -13,7 +13,10 @@ const BACKOFF = [1000, 2000, 4000, 8000, 15000];
 const INK_EVERY = 50;
 const CHAT_KEEP = 200;
 
-type InkListener = (event: { kind: 'canvas' | 'ink'; turn: number; ops: Op[] }) => void;
+type InkListener = (event: { kind: 'canvas' | 'ink'; turn: number; team: number | null; ops: Op[] }) => void;
+type Drawing = { turn: number; ops: Op[] };
+/** A team duel has a drawing per team; every other turn one, under 'main'. */
+const keyOf = (team: number | null | undefined) => (team === null || team === undefined ? 'main' : String(team));
 type ReactListener = (event: { player: string; e: number }) => void;
 
 /** One stream, either a player's (with a seat) or the big screen's (code only). */
@@ -25,8 +28,8 @@ export class Room {
   live = $state(false);
   /** Server clock minus ours, for the countdown. */
   offset = $state(0);
-  /** The current drawing as ops: what a canvas mounting now starts from. */
-  drawing: { turn: number; ops: Op[] } = { turn: 0, ops: [] };
+  /** The current drawings as ops, by team ('main' outside a duel): what a canvas mounting now starts from. */
+  drawings: Record<string, Drawing> = {};
 
   #source: EventSource | null = null;
   #attempt = 0;
@@ -82,13 +85,20 @@ export class Room {
     return () => this.#react.delete(fn);
   }
 
+  /** The drawing so far for a team (or the only one), if it belongs to this turn. */
+  drawingFor(turn: number, team: number | null = null): Op[] {
+    const d = this.drawings[keyOf(team)];
+    return d && d.turn === turn ? d.ops : [];
+  }
+
   /**
    * The drawer's own ops: kept as the drawing (they're already painted) and sent in batches, one
    * request at a time, with whatever piled up in between merged in.
    */
-  ink(turn: number, ops: Op[]) {
-    if (turn !== this.drawing.turn) this.drawing = { turn, ops: [] };
-    this.drawing.ops.push(...ops.map((op) => [...op]));
+  ink(turn: number, ops: Op[], team: number | null = null) {
+    const key = keyOf(team);
+    if (this.drawings[key]?.turn !== turn) this.drawings[key] = { turn, ops: [] };
+    this.drawings[key].ops.push(...ops.map((op) => [...op]));
     if (turn !== this.#pendingTurn) {
       this.#pending = [];
       this.#pendingTurn = turn;
@@ -100,6 +110,18 @@ export class Room {
       else this.#pending.push([...op]);
     }
     if (!this.#sending && !this.#sendTimer) this.#sendTimer = window.setTimeout(this.#flush, INK_EVERY);
+  }
+
+  /** Resolves once every ink batch is out (Fälscher passes the pen only after its stroke has gone). */
+  async settle(limit = 2000) {
+    const until = Date.now() + limit;
+    while ((this.#pending.length || this.#sending || this.#sendTimer) && Date.now() < until) {
+      if (this.#sendTimer && !this.#sending) {
+        clearTimeout(this.#sendTimer);
+        void this.#flush();
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   #flush = async () => {
@@ -137,17 +159,18 @@ export class Room {
       if (view.phase === 'gone') this.close();
     });
     source.addEventListener('canvas', (event) => {
-      const body = parse<{ turn: number; ops: Op[] }>(event);
+      const body = parse<{ turn: number; team: number | null; ops: Op[] }>(event);
       if (!body) return;
-      this.drawing = { turn: body.turn, ops: body.ops };
-      for (const fn of this.#ink) fn({ kind: 'canvas', turn: body.turn, ops: body.ops });
+      this.drawings[keyOf(body.team)] = { turn: body.turn, ops: body.ops };
+      for (const fn of this.#ink) fn({ kind: 'canvas', turn: body.turn, team: body.team ?? null, ops: body.ops });
     });
     source.addEventListener('ink', (event) => {
-      const body = parse<{ turn: number; ops: Op[] }>(event);
+      const body = parse<{ turn: number; team: number | null; ops: Op[] }>(event);
       if (!body) return;
-      if (body.turn !== this.drawing.turn) this.drawing = { turn: body.turn, ops: [] };
-      this.drawing.ops.push(...body.ops);
-      for (const fn of this.#ink) fn({ kind: 'ink', turn: body.turn, ops: body.ops });
+      const key = keyOf(body.team);
+      if (this.drawings[key]?.turn !== body.turn) this.drawings[key] = { turn: body.turn, ops: [] };
+      this.drawings[key].ops.push(...body.ops);
+      for (const fn of this.#ink) fn({ kind: 'ink', turn: body.turn, team: body.team ?? null, ops: body.ops });
     });
     source.addEventListener('chat', (event) => {
       const body = parse<{ lines: ChatLine[]; backlog?: boolean }>(event);

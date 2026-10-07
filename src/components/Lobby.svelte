@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ApiError, type Config, type Settings, type View } from '../lib/api';
+  import { ApiError, type Config, type Settings, type SpiceChoice, type View } from '../lib/api';
   import type { Avatar as AvatarValue } from '../lib/avatar';
   import { errorText, t, type Key } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
@@ -16,15 +16,22 @@
 
   let { room, view, config }: { room: Room; view: View; config: Config | null } = $props();
 
-  const PRESETS = {
+  const PRESETS: Record<string, Partial<Settings>> = {
     classic: { rounds: 3, seconds: 80, words: 3, hints: 2 },
     blitz: { rounds: 2, seconds: 45, words: 1, hints: 3 },
+    forger: { rounds: 3, laps: 2, strokeSeconds: 15 },
+    duel: { rounds: 2, seconds: 80, hints: 2 },
   };
+  const MODES = ['classic', 'blitz', 'forger', 'duel'] as const;
+  const SPICES: SpiceChoice[] = $derived(config?.spices ?? ['off', 'random', 'blind', 'oneline', 'ink', 'three', 'mirror', 'shaky']);
+  const TEAMS = $derived(config?.teams ?? [2, 3, 4]);
+  const LAPS = $derived(config?.laps ?? [1, 2, 3]);
+  const STROKES = $derived(config?.strokeSeconds ?? [10, 15, 20]);
   const ROUNDS = $derived(config?.rounds ?? [2, 3, 4, 5, 6, 8, 10]);
   const SECONDS = $derived(config?.seconds ?? [30, 45, 60, 80, 100, 120, 180, 240]);
   const WORDS = $derived(config?.words ?? [1, 2, 3, 4, 5]);
   const HINTS = $derived(config?.hints ?? [0, 1, 2, 3, 4, 5]);
-  const PACKS = $derived(config?.packs ?? ['everyday', 'animals', 'food', 'places', 'jobs', 'office', 'sports', 'nature', 'things']);
+  const PACKS = $derived(config?.packs ?? ['everyday', 'animals', 'food', 'places', 'jobs', 'office', 'sports', 'nature', 'things', 'travel', 'hobbies', 'fantasy']);
 
   let pending: Partial<Settings> = $state({});
   let sending = false;
@@ -32,6 +39,11 @@
   let more = $state(false);
   let copied = $state(false);
   let avatarOpen = $state(false);
+  /** The sheet's content stays until its exit animation is over (its close event). */
+  let avatarShown = $state(false);
+  $effect(() => {
+    if (avatarOpen) avatarShown = true;
+  });
   let myAvatar: AvatarValue | null = $state(null);
   let customText = $state('');
   let customTimer = 0;
@@ -42,6 +54,12 @@
   const hostName = $derived(view.players.find((p) => p.id === view.host)?.name ?? '');
   const link = $derived(`${location.origin}/${view.code}`);
   const bots = $derived(view.players.filter((p) => p.bot).length);
+  const duel = $derived(settings.mode === 'duel');
+  const forger = $derived(settings.mode === 'forger');
+  const minPlayers = $derived(forger ? 3 : 2);
+  const teamLists = $derived(
+    Array.from({ length: view.settings.teams }, (_, team) => view.players.filter((p) => p.team === team)),
+  );
 
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -167,6 +185,23 @@
         </li>
       {/each}
     </ul>
+    {#if duel}
+      <div class="teams">
+        {#each teamLists as members, team (team)}
+          <div class="team box alt">
+            <span class="team-tag t{team}">{t('teamName', { name: t(`team_${team}` as Key) })}</span>
+            <span class="faces">
+              {#each members as p (p.id)}<Avatar avatar={p.avatar} size={28} />{/each}
+              {#if !members.length}<span class="hint">{t('nobodyYet')}</span>{/if}
+            </span>
+            {#if me && me.team !== team}
+              <button class="chip small" type="button" onclick={() => act('team', { team })}>{t('joinTeam')}</button>
+            {/if}
+          </div>
+        {/each}
+        {#if isHost}<button class="chip" type="button" onclick={() => act('shuffle')}>{t('shuffleTeams')}</button>{/if}
+      </div>
+    {/if}
     {#if isHost}
       <div class="bots">
         <button class="chip" type="button" onclick={() => act('bot', { add: true })} disabled={bots >= 8}>+ {t('addBot')}</button>
@@ -182,7 +217,7 @@
     <div class="row">
       <span class="name">{t('mode')}</span>
       <div class="chips">
-        {#each ['classic', 'blitz'] as const as mode (mode)}
+        {#each MODES as mode (mode)}
           {@render choice(t(`mode_${mode}`), settings.mode === mode, () => change({ mode }))}
         {/each}
       </div>
@@ -194,26 +229,59 @@
         {#each ROUNDS as n (n)}{@render choice(String(n), settings.rounds === n, () => change({ rounds: n }))}{/each}
       </div>
     </div>
-    <div class="row">
-      <span class="name">{t('seconds')}</span>
-      <div class="chips">
-        {#each SECONDS as n (n)}{@render choice(t('secondsUnit', { n }), settings.seconds === n, () => change({ seconds: n }))}{/each}
+    {#if forger}
+      <div class="row">
+        <span class="name">{t('laps')}</span>
+        <div class="chips">
+          {#each LAPS as n (n)}{@render choice(String(n), settings.laps === n, () => change({ laps: n }))}{/each}
+        </div>
       </div>
-    </div>
-    <div class="row">
-      <span class="name">{t('words')}</span>
-      <div class="chips">
-        {#each WORDS as n (n)}{@render choice(String(n), settings.words === n, () => change({ words: n }))}{/each}
+      <div class="row">
+        <span class="name">{t('strokeTime')}</span>
+        <div class="chips">
+          {#each STROKES as n (n)}{@render choice(t('secondsUnit', { n }), settings.strokeSeconds === n, () => change({ strokeSeconds: n }))}{/each}
+        </div>
       </div>
-    </div>
-    <div class="row">
-      <span class="name">{t('hints')}</span>
-      <div class="chips">
-        {#each HINTS as n (n)}{@render choice(String(n), settings.hints === n, () => change({ hints: n }))}{/each}
+    {:else}
+      <div class="row">
+        <span class="name">{t('seconds')}</span>
+        <div class="chips">
+          {#each SECONDS as n (n)}{@render choice(t('secondsUnit', { n }), settings.seconds === n, () => change({ seconds: n }))}{/each}
+        </div>
       </div>
-    </div>
+      {#if !duel}
+        <div class="row">
+          <span class="name">{t('words')}</span>
+          <div class="chips">
+            {#each WORDS as n (n)}{@render choice(String(n), settings.words === n, () => change({ words: n }))}{/each}
+          </div>
+        </div>
+      {/if}
+      <div class="row">
+        <span class="name">{t('hints')}</span>
+        <div class="chips">
+          {#each HINTS as n (n)}{@render choice(String(n), settings.hints === n, () => change({ hints: n }))}{/each}
+        </div>
+      </div>
+      {#if duel}
+        <div class="row">
+          <span class="name">{t('teams')}</span>
+          <div class="chips">
+            {#each TEAMS as n (n)}{@render choice(String(n), settings.teams === n, () => change({ teams: n }))}{/each}
+          </div>
+        </div>
+      {/if}
+      <div class="row">
+        <span class="name">{t('spice')}</span>
+        <div class="chips">
+          {#each SPICES as sp (sp)}{@render choice(t(`spice_${sp}` as Key), settings.spice === sp, () => change({ spice: sp }))}{/each}
+        </div>
+        <p class="hint wide">{t(`spice_${settings.spice}_hint` as Key)}</p>
+      </div>
+    {/if}
 
     {#if more}
+      {#if !forger}
       <div class="row">
         <span class="name">{t('wordMode')}</span>
         <div class="chips">
@@ -223,6 +291,7 @@
         </div>
         <p class="hint wide">{t(`wordMode_${settings.wordMode}_hint`)}</p>
       </div>
+      {/if}
       <div class="row">
         <span class="name">{t('wordLang')}</span>
         <div class="chips">
@@ -273,8 +342,8 @@
 
   <div class="go">
     {#if isHost}
-      <button class="btn primary block" type="button" disabled={view.players.length < 2} onclick={() => act('start')}>{t('start')}</button>
-      {#if view.players.length < 2}<p class="hint center">{t('startNeeds')}</p>{/if}
+      <button class="btn primary block" type="button" disabled={view.players.length < minPlayers} onclick={() => act('start')}>{t('start')}</button>
+      {#if view.players.length < minPlayers}<p class="hint center">{forger ? t('startNeedsThree') : t('startNeeds')}</p>{/if}
     {:else}
       <p class="waiting display">{t('waitingFor', { name: hostName })}</p>
     {/if}
@@ -283,9 +352,17 @@
 </div>
 
 {#if me}
-  <ewo-sheet open={avatarOpen} label={t('changeAvatar')} oncancel={() => (avatarOpen = false)} onclose={() => (avatarOpen = false)}>
+  <ewo-sheet
+    open={avatarOpen}
+    label={t('changeAvatar')}
+    oncancel={() => (avatarOpen = false)}
+    onclose={() => {
+      avatarOpen = false;
+      avatarShown = false;
+    }}
+  >
     <span slot="heading">{t('changeAvatar')}</span>
-    {#if avatarOpen}
+    {#if avatarShown}
       <div class="sheet-maker">
         <AvatarMaker avatar={myAvatar ?? me.avatar} onchange={changeAvatar} />
         <button class="btn primary block" type="button" onclick={() => (avatarOpen = false)}>{t('done')}</button>
@@ -455,6 +532,41 @@
     border-radius: 50%;
     background: var(--card);
     font: 700 15px/1 var(--ewo-sans);
+  }
+  .teams {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .team {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .team-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: #ffffff;
+    font: 700 13px/1.3 var(--ewo-sans);
+  }
+  .t0 { background: #c9341f; }
+  .t1 { background: #2d5bd8; }
+  .t2 { background: #8a6d00; }
+  .t3 { background: #1f7a45; }
+  .faces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .chip.small {
+    min-height: 30px;
+    font-size: 13px;
   }
   .bots {
     display: flex;

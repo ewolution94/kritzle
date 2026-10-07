@@ -6,6 +6,11 @@
   Drawing on a phone is a real way to play: pointer capture, coalesced events where the browser
   has them, no scrolling, callout or selection on the canvas (touch-action: none), and the page's
   gutter keeps strokes away from Safari's edge-swipe back gesture.
+
+  A team duel has a canvas per team (`team`). Würze changes the drawer's pen here: blind (the sheet
+  wipes when the pen lifts), mirror (a mirrored copy follows each stroke), shaky (the hand trembles),
+  one stroke, and the ink budget; the server holds the rules too (server/game.mjs → spiceFilter).
+  Fälscher (`stroke`): one stroke in the player's own colour, then `onstroke`.
 -->
 <script lang="ts" module>
   export type Tool = 'pen' | 'eraser' | 'fill';
@@ -13,26 +18,52 @@
 
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
-  import type { Turn } from '../lib/api';
-  import { Board, PAPER, Playback, type Op } from '../lib/ink';
+  import type { Spice, Turn } from '../lib/api';
+  import { Board, INK_BUDGET, PAPER, Playback, W, type Op } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
 
   let {
     room,
     turn,
+    team = null,
     drawing = false,
     tool = 'pen',
     color = 0,
     size = 1,
+    spice = null,
+    stroke = null,
+    onstroke,
+    oninkused,
     children,
-  }: { room: Room; turn: Turn; drawing?: boolean; tool?: Tool; color?: number; size?: number; children?: Snippet } = $props();
+  }: {
+    room: Room;
+    turn: Turn;
+    team?: number | null;
+    drawing?: boolean;
+    tool?: Tool;
+    color?: number;
+    size?: number;
+    spice?: Spice | null;
+    /** Fälscher: this player's one stroke, in their colour. */
+    stroke?: { color: number } | null;
+    onstroke?: () => void;
+    oninkused?: (points: number) => void;
+    children?: Snippet;
+  } = $props();
 
   const board = new Board();
   const playback = new Playback(board);
   let canvas: HTMLCanvasElement;
   let shown = 0;
-  let stroke: number | null = null;
+  let active: number | null = null;
+  let current: number[] = [];
+  let currentColor = 0;
+  let currentSize = 1;
   let seq = 0;
+  let strokes = 0;
+  /** Fälscher: strokes this player has drawn in this turn of theirs. */
+  let mine = 0;
+  let used = 0;
   let last: [number, number] = [0, 0];
   let floating: { id: number; e: string; x: number }[] = $state([]);
   let floatId = 0;
@@ -43,14 +74,22 @@
   function show(n: number) {
     shown = n;
     playback.reset();
-    stroke = null;
-    board.reset(room.drawing.turn === n ? room.drawing.ops : []);
+    active = null;
+    board.reset(room.drawingFor(n, team));
     seq = board.actions.length + 1;
+    strokes = board.actions.filter((a) => a.k === 's').length;
+    used = board.actions.reduce((sum, a) => sum + (a.k === 's' ? a.pts.length / 3 : 0), 0);
+    oninkused?.(used);
   }
 
   // A new turn starts on a clean sheet (or on what's there, coming back mid-turn).
   $effect(() => {
     if (turn.n !== shown) show(turn.n);
+  });
+
+  // Fälscher: each turn of mine allows one new stroke.
+  $effect(() => {
+    if (drawing) mine = 0;
   });
 
   onMount(() => {
@@ -59,6 +98,7 @@
     const resize = new ResizeObserver(() => board.resize());
     resize.observe(canvas);
     const offInk = room.onInk((event) => {
+      if ((event.team ?? null) !== team) return;
       if (event.turn !== shown) {
         if (event.kind === 'canvas') show(event.turn);
         return;
@@ -67,7 +107,7 @@
         playback.reset();
         board.reset(event.ops);
         seq = Math.max(seq, board.actions.length + 1);
-      } else if (!drawing) playback.push(event.ops);
+      } else playback.push(event.ops);
     });
     const offReact = room.onReact(({ e }) => {
       const id = ++floatId;
@@ -85,24 +125,37 @@
 
   function emit(op: Op) {
     board.apply(op);
-    room.ink(turn.n, [op]);
+    room.ink(turn.n, [op], team);
+  }
+
+  function spend(points: number) {
+    used += points;
+    oninkused?.(used);
   }
 
   /** The dock's buttons and the keyboard. */
   export function undo() {
-    if (!drawing || !board.actions.length) return;
-    stroke = null;
+    if (!drawing || stroke || !board.actions.length) return;
+    active = null;
     emit(['u']);
   }
 
   export function clear() {
-    if (!drawing || !board.actions.length || board.actions.at(-1)?.k === 'x') return;
-    stroke = null;
+    if (!drawing || stroke || spice === 'oneline' || !board.actions.length || board.actions.at(-1)?.k === 'x') return;
+    active = null;
     emit(['x', elapsed()]);
   }
 
+  /** Can the pen go down now? (Würze and Fälscher limit it.) */
+  function allowed() {
+    if (stroke) return mine === 0;
+    if (spice === 'oneline' && strokes >= 1) return false;
+    if (spice === 'ink' && used >= INK_BUDGET) return false;
+    return true;
+  }
+
   function down(event: PointerEvent) {
-    if (!drawing || event.button > 0) return;
+    if (!drawing || event.button > 0 || !allowed()) return;
     event.preventDefault();
     try {
       canvas.setPointerCapture(event.pointerId);
@@ -110,32 +163,58 @@
       // A synthetic pointer can't be captured (learnings/browser-testing.md); real ones can.
     }
     const [x, y] = board.toCanvas(event.clientX, event.clientY);
-    if (tool === 'fill') {
+    if (tool === 'fill' && !stroke && spice !== 'oneline') {
       const rle = board.fillRegion(x, y, color);
       if (rle) emit(['f', color, rle, elapsed()]);
       return;
     }
-    stroke = seq++;
+    active = seq++;
+    strokes++;
+    mine++;
     last = [x, y];
-    emit(['s', stroke, tool === 'eraser' ? PAPER : color, size, x, y, elapsed()]);
+    currentColor = stroke ? stroke.color : tool === 'eraser' ? PAPER : color;
+    currentSize = stroke ? Math.min(size, 2) : size;
+    const t = elapsed();
+    current = [x, y, t];
+    emit(['s', active, currentColor, currentSize, x, y, t]);
+    spend(1);
+  }
+
+  function jitter(v: number) {
+    return spice === 'shaky' ? v + Math.round((Math.random() - 0.5) * 10) : v;
   }
 
   function move(event: PointerEvent) {
-    if (stroke === null) return;
+    if (active === null) return;
     const events = event.getCoalescedEvents?.() ?? [];
     const pts: number[] = [];
     const t = elapsed();
     for (const e of events.length ? events : [event]) {
+      if (spice === 'ink' && used + pts.length / 3 >= INK_BUDGET) break;
       const [x, y] = board.toCanvas(e.clientX, e.clientY);
       if (Math.abs(x - last[0]) + Math.abs(y - last[1]) < 2) continue;
       last = [x, y];
-      pts.push(x, y, t);
+      pts.push(jitter(x), jitter(y), t);
     }
-    if (pts.length) emit(['p', stroke, ...pts]);
+    if (!pts.length) return;
+    current.push(...pts);
+    emit(['p', active, ...pts]);
+    spend(pts.length / 3);
   }
 
   function up() {
-    stroke = null;
+    if (active === null) return;
+    active = null;
+    if (spice === 'mirror' && current.length >= 3) {
+      // The mirrored copy follows once the pen lifts (only the latest stroke can grow).
+      const id = seq++;
+      const m = current.map((v, i) => (i % 3 === 0 ? W - v : v));
+      emit(['s', id, currentColor, currentSize, m[0], m[1], m[2]]);
+      if (m.length > 3) emit(['p', id, ...m.slice(3)]);
+    }
+    current = [];
+    if (spice === 'blind') board.blank();
+    if (stroke) onstroke?.();
   }
 </script>
 

@@ -23,7 +23,7 @@
   const playing = $derived(inTurn(room));
 
   function inTurn(r: Room | null) {
-    return ['choose', 'draw', 'reveal'].includes(r?.view?.phase ?? '');
+    return ['choose', 'draw', 'forge', 'vote', 'unmask', 'reveal'].includes(r?.view?.phase ?? '');
   }
 
   function codeFrom(p: string) {

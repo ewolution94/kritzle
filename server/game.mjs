@@ -4,8 +4,17 @@
 // A room lives in memory only. A restart (a deploy) ends every game, and an empty room is
 // forgotten after half an hour.
 //
-// Phases: lobby → choose (the drawer picks a word) → draw → reveal (the word, the points) → the
-// next turn's choose … → final → (rematch) lobby. Each round, every player draws once.
+// Four modes (settings.mode), each a turn of its own kind (turn.kind):
+//   classic, blitz  skribbl.io's game: lobby → choose → draw → reveal → … → final. Each round,
+//                   every player draws once. Blitz is a preset of the same.
+//   duel            Team duel: each team's drawer draws the same word at the same moment on the
+//                   team's own canvas; teammates guess in the team's chat; the first team scores most.
+//   forger          Fälscher: everyone but the forger knows the word; in turns each adds one stroke
+//                   to one shared drawing; then everyone points at the forger, who, caught, may still
+//                   name the word. Phases forge → vote → (unmask) → reveal.
+// Würze (settings.spice) changes how a classic or duel turn is drawn: one stroke, little ink, three
+// colours, blind, mirrored, shaky. Some of it the server enforces (spiceFilter), the rest is the
+// drawer's page.
 //
 // The word never leaks: every player's stream is built for them (view below). Guessers get the
 // blanks and the hints so far; the drawer and whoever has guessed get the word. A right guess is
@@ -22,8 +31,7 @@ import { CUSTOM_LIMITS, LANGS, PACKS, choices as drawChoices, parseCustom, pool 
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
 export const CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
-/** classic: skribbl.io's game · blitz: the same, short (a preset the host can still change) */
-export const MODES = ['classic', 'blitz'];
+export const MODES = ['classic', 'blitz', 'forger', 'duel'];
 export const ROUND_CHOICES = [2, 3, 4, 5, 6, 8, 10];
 export const SECOND_CHOICES = [30, 45, 60, 80, 100, 120, 180, 240];
 export const WORD_CHOICES = [1, 2, 3, 4, 5];
@@ -33,10 +41,19 @@ export const WORD_MODES = ['normal', 'hidden', 'combo'];
 export const DIFFICULTY_CHOICES = ['mixed', 'easy', 'medium', 'hard'];
 /** The reactions that float up over the canvas. */
 export const REACTIONS = ['👍', '😂', '😮', '🔥', '👏', '🤔'];
+/** Würze: how a turn is drawn. */
+export const SPICES = ['blind', 'oneline', 'ink', 'three', 'mirror', 'shaky'];
+export const SPICE_CHOICES = ['off', 'random', ...SPICES];
+export const TEAM_CHOICES = [2, 3, 4];
+/** Fälscher: laps round the table, and seconds for one stroke. */
+export const LAP_CHOICES = [1, 2, 3];
+export const STROKE_CHOICES = [10, 15, 20];
 
 const PRESETS = {
   classic: { rounds: 3, seconds: 80, words: 3, hints: 2 },
   blitz: { rounds: 2, seconds: 45, words: 1, hints: 3 },
+  forger: { rounds: 3, laps: 2, strokeSeconds: 15 },
+  duel: { rounds: 2, seconds: 80, hints: 2 },
 };
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -49,6 +66,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   custom: '',
   onlyCustom: false,
   nearMiss: true,
+  spice: 'off',
+  teams: 2,
+  laps: 2,
+  strokeSeconds: 15,
 });
 
 export const LIMITS = {
@@ -75,6 +96,20 @@ const IDLE_TTL = 4 * 60 * 60_000;
 const CHAT_WINDOW = 3_000;
 const CHAT_MAX = 5;
 const REACT_GAP = 250;
+/** Würze "Wenig Tinte": points a whole drawing may have. */
+export const INK_BUDGET = 240;
+const PAPER = 3;
+/** The colours "Drei Farben" draws from (no paper, no greys). */
+const SPICE_COLORS = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 21];
+/** Fälscher: each player's own colour, in table order. */
+export const FORGER_COLORS = [4, 11, 8, 13, 5, 9, 14, 16, 0, 22];
+const VOTE_MS = 30_000;
+const UNMASK_MS = 20_000;
+const FORGER_REVEAL_MS = 8_000;
+/** Fälscher's points. */
+export const FORGER_POINTS = Object.freeze({ escaped: 800, guessed: 500, artists: 300, vote: 100 });
+/** A stroke player gone this long is skipped. */
+const STROKE_GRACE = 5_000;
 
 const BOT_NAMES = ['Robo Rita', 'Bot Bernd', 'Pixel Paula', 'Kritzel-Karl', 'Tinte Tom', 'Skizzen-Sam', 'Krakel-Kim', 'Feder Fritz'];
 const BOT_MISSES = ['hmm', 'Haus?', 'ein Tier?', 'Baum', 'Auto', 'keine Ahnung', 'Sonne?', 'Katze'];
@@ -150,6 +185,17 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   }
 
   const isOnline = (p) => p.bot || p.online > 0;
+  /** Gone for a while (not just reconnecting). */
+  const goneFor = (p, ms) => !isOnline(p) && p.offlineSince !== null && clock.now() - p.offlineSince >= ms;
+
+  function shuffled(list) {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
 
   function addPlayer(r, rawName, rawAvatar, bot = false) {
     if (present(r).length >= LIMITS.players) throw new GameError('room-full', 409);
@@ -165,6 +211,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       avatar: cleanAvatar(rawAvatar, random),
       bot,
       score: 0,
+      team: null,
       joined: clock.now(),
       online: 0,
       offlineSince: clock.now(),
@@ -174,9 +221,35 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       close: 0,
     };
     r.players.set(p.id, p);
+    if (usesTeams(r)) p.team = smallestTeam(r);
     // Someone arriving mid-game draws later this round.
     if (r.game && r.phase !== 'final') r.game.queue.push(p.id);
     return p;
+  }
+
+  // ---- teams (Team duel) --------------------------------------------------------------------
+
+  const usesTeams = (r) => (r.game ? r.game.mode : r.settings.mode) === 'duel';
+  const teamCount = (r) => (r.game?.mode === 'duel' ? r.game.teams : r.settings.teams);
+
+  function smallestTeam(r) {
+    const sizes = Array(teamCount(r)).fill(0);
+    for (const p of present(r)) if (p.team !== null && p.team < sizes.length) sizes[p.team]++;
+    return sizes.indexOf(Math.min(...sizes));
+  }
+
+  /** Everyone into teams again, in turn (shuffled first if asked). */
+  function spreadTeams(r, mix = false) {
+    const people = mix ? shuffled(present(r)) : present(r);
+    const teams = r.settings.mode === 'duel' ? r.settings.teams : 0;
+    people.forEach((p, i) => (p.team = teams ? i % teams : null));
+  }
+
+  /** The members of each team, as ids, in join order. */
+  function teamLists(r) {
+    const lists = Array.from({ length: teamCount(r) }, () => []);
+    for (const p of present(r)) if (p.team !== null && p.team < lists.length) lists[p.team].push(p.id);
+    return lists;
   }
 
   function touch(r) {
@@ -201,6 +274,17 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   // ---- what each page gets ------------------------------------------------------------------
 
+  /** Does this player know the word right now? */
+  function knows(t, p) {
+    if (!t || !p) return false;
+    if (t.kind === 'classic') return t.drawer === p.id || t.guessed.has(p.id);
+    if (t.kind === 'duel') {
+      const team = t.teams.find((x) => x.team === p.team);
+      return Boolean(team && (team.drawer === p.id || team.done));
+    }
+    return p.id !== t.forger;
+  }
+
   /** @param {any} r  @param {any | null} viewer  the player whose page this is; null for the big screen */
   function view(r, viewer) {
     const t = r.turn;
@@ -222,10 +306,12 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         score: p.score,
         online: isOnline(p),
         bot: p.bot,
-        guessed: Boolean(t && t.guessed.has(p.id)),
+        team: p.team,
+        guessed: Boolean(t && (t.kind === 'forger' ? t.phase === 'vote' && t.votes.has(p.id) : t.phase !== 'choose' && knows(t, p) && !isDrawer(t, p.id))),
         points: t?.phase === 'reveal' ? (t.points.get(p.id) ?? 0) : null,
       })),
-      game: r.game ? { mode: r.game.mode, rounds: r.game.rounds, round: r.game.round } : null,
+      game: r.game ? { mode: r.game.mode, rounds: r.game.rounds, round: r.game.round, teams: r.game.teams ?? 0 } : null,
+      teams: r.game?.mode === 'duel' ? r.teamScores : null,
       turn: t ? turnView(r, t, me) : null,
       final: r.phase === 'final' ? finalView(r) : null,
       reactions: REACTIONS,
@@ -233,8 +319,22 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     };
   }
 
+  function isDrawer(t, id) {
+    if (t.kind === 'classic') return t.drawer === id;
+    if (t.kind === 'duel') return t.teams.some((x) => x.drawer === id);
+    return false;
+  }
+
+  function likeCounts(t, me) {
+    let likes = 0;
+    let dislikes = 0;
+    for (const v of t.likes.values()) v > 0 ? likes++ : dislikes++;
+    return { like: me ? (t.likes.get(me.id) ?? 0) : 0, likes, dislikes };
+  }
+
   function turnView(r, t, me) {
-    const base = { n: t.n, round: t.round, drawer: t.drawer, phase: t.phase };
+    if (t.kind === 'forger') return forgerView(r, t, me);
+    const base = { kind: t.kind, n: t.n, round: t.round, drawer: t.drawer ?? null, phase: t.phase };
     if (t.phase === 'choose') {
       return {
         ...base,
@@ -242,12 +342,9 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         choices: me?.id === t.drawer ? t.choices.map((c) => ({ word: c.word, difficulty: c.difficulty })) : null,
       };
     }
-    const knows = Boolean(me && (t.drawer === me.id || t.guessed.has(me.id)));
-    const word = t.phase === 'reveal' || knows ? t.entry.word : null;
+    const word = t.phase === 'reveal' || knows(t, me) ? t.entry.word : null;
     const hidden = !word && r.settings.wordMode === 'hidden' && t.shown === 0;
-    let likes = 0;
-    let dislikes = 0;
-    for (const v of t.likes.values()) v > 0 ? likes++ : dislikes++;
+    const myTeam = t.kind === 'duel' && me ? me.team : null;
     return {
       ...base,
       startsAt: t.startsAt,
@@ -257,19 +354,69 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       pattern: word || hidden ? null : pattern(t.entry.word, t.revealed),
       hints: t.shown,
       hintsTotal: t.hints.length,
-      guessed: t.guessed.size,
-      like: me ? (t.likes.get(me.id) ?? 0) : 0,
-      likes,
-      dislikes,
+      guessed: t.kind === 'duel' ? t.teams.filter((x) => x.done).length : t.guessed.size,
+      spice: t.spice,
+      palette: t.palette,
+      ...likeCounts(t, me),
       ended: t.ended,
       revealEndsAt: t.revealEndsAt ?? null,
+      myTeam,
+      teams:
+        t.kind === 'duel'
+          ? t.teams.map((x) => ({ team: x.team, drawer: x.drawer, done: x.done, order: x.order, at: x.at, points: t.phase === 'reveal' ? x.points : null }))
+          : null,
+    };
+  }
+
+  function forgerView(r, t, me) {
+    const revealed = t.phase === 'reveal';
+    const tally = {};
+    for (const target of t.votes.values()) tally[target] = (tally[target] ?? 0) + 1;
+    return {
+      kind: 'forger',
+      n: t.n,
+      round: t.round,
+      phase: t.phase,
+      drawer: null,
+      category: t.category,
+      word: revealed || (me && me.id !== t.forger) ? t.entry.word : null,
+      difficulty: t.entry.difficulty,
+      forgerMe: me?.id === t.forger,
+      forger: revealed ? t.forger : null,
+      order: t.order,
+      laps: t.laps,
+      step: t.step,
+      colors: Object.fromEntries(t.colors),
+      stroke: t.phase === 'forge' && t.stroke ? { player: t.stroke.player, endsAt: t.stroke.endsAt, started: t.stroke.started } : null,
+      endsAt: t.phase === 'vote' || t.phase === 'unmask' ? t.endsAt : null,
+      voted: t.phase === 'vote' ? [...t.votes.keys()] : null,
+      myVote: me ? (t.votes.get(me.id) ?? null) : null,
+      tally: t.phase === 'unmask' || revealed ? tally : null,
+      caught: t.phase === 'unmask' || revealed ? t.caught : null,
+      forgerGuess: revealed ? t.forgerGuess : null,
+      forgerRight: revealed ? t.forgerRight : null,
+      ended: t.ended,
+      revealEndsAt: t.revealEndsAt ?? null,
+      ...likeCounts(t, me),
     };
   }
 
   function finalView(r) {
     return {
       awards: r.awards,
-      drawings: r.gallery.map((g) => ({ n: g.n, round: g.round, drawer: g.drawer, word: g.word, difficulty: g.difficulty, likes: g.likes, dislikes: g.dislikes, guessed: g.guessed, possible: g.possible })),
+      drawings: r.gallery.map((g) => ({
+        n: g.n,
+        round: g.round,
+        drawer: g.drawer,
+        word: g.word,
+        difficulty: g.difficulty,
+        likes: g.likes,
+        dislikes: g.dislikes,
+        guessed: g.guessed,
+        possible: g.possible,
+        kind: g.kind,
+        team: g.team ?? null,
+      })),
     };
   }
 
@@ -284,8 +431,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   /**
    * One chat line, delivered to everyone (`to` null) or to a set of players. Kinds: msg (someone's
-   * words), guessed (got it), close and half (only to the guesser), join, leave, word (the turn's
-   * word at its end), skip (the turn was skipped), host (a new host).
+   * words), guessed (got it), team (a team got it: text is the team), close and half (only to the
+   * guesser), join, leave, word (the turn's word at its end), skip (the turn was skipped), host.
    */
   function post(r, kind, playerId, text = '', to = null) {
     const line = { id: ++r.chatSeq, kind, player: playerId, text, to, at: clock.now() };
@@ -298,9 +445,13 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   const sees = (line, playerId) => !line.to || (playerId !== null && line.to.has(playerId));
   const shownLine = (line) => ({ id: line.id, kind: line.kind, player: line.player, text: line.text, private: Boolean(line.to), at: line.at });
 
-  /** Whoever knows the word right now: the drawer and those who've guessed it. */
+  /** Whoever knows the word right now (classic): the drawer and those who've guessed it. */
   function knowers(t) {
     return new Set([t.drawer, ...t.guessed.keys()]);
+  }
+
+  function teamMembers(r, team) {
+    return new Set(present(r).filter((p) => p.team === team).map((p) => p.id));
   }
 
   function say(r, p, raw) {
@@ -308,33 +459,58 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     if (!text) throw new GameError('empty');
     if (!p.bot && !within(p.chats, CHAT_WINDOW, CHAT_MAX)) throw new GameError('slow-down', 429);
     const t = r.turn;
-    if (r.phase === 'draw' && t) {
-      const knows = t.drawer === p.id || t.guessed.has(p.id);
-      const result = judge(t.entry, text);
-      if (knows) {
-        // The drawer, or someone who has it, can't hand the word out.
-        if (result) throw new GameError('spoiler', 409);
-        post(r, 'msg', p.id, text, knowers(t));
-        return;
-      }
-      if (result === 'right') {
-        guessed(r, p);
-        return;
-      }
-      if (result === 'half') {
-        // Half of a combination would tell everyone that half: only those who know see it.
-        post(r, 'msg', p.id, text, new Set([...knowers(t), p.id]));
-        if (r.settings.nearMiss) post(r, 'half', p.id, text, new Set([p.id]));
-        return;
-      }
+    if (t && t.kind === 'classic' && r.phase === 'draw') return sayClassic(r, t, p, text);
+    if (t && t.kind === 'duel' && r.phase === 'draw') return sayDuel(r, t, p, text);
+    if (t && t.kind === 'forger' && ['forge', 'vote', 'unmask'].includes(r.phase)) {
+      // Those who know the word can't write it, or anything close: the forger reads the chat too.
+      if (p.id !== t.forger && judge(t.entry, text)) throw new GameError('spoiler', 409);
       post(r, 'msg', p.id, text);
-      if (result === 'close') {
-        p.close++;
-        if (r.settings.nearMiss) post(r, 'close', p.id, text, new Set([p.id]));
-      }
       return;
     }
     post(r, 'msg', p.id, text);
+  }
+
+  function sayClassic(r, t, p, text) {
+    const knowsIt = t.drawer === p.id || t.guessed.has(p.id);
+    const result = judge(t.entry, text);
+    if (knowsIt) {
+      // The drawer, or someone who has it, can't hand the word out.
+      if (result) throw new GameError('spoiler', 409);
+      post(r, 'msg', p.id, text, knowers(t));
+      return;
+    }
+    if (result === 'right') return guessed(r, p);
+    if (result === 'half') {
+      // Half of a combination would tell everyone that half: only those who know see it.
+      post(r, 'msg', p.id, text, new Set([...knowers(t), p.id]));
+      if (r.settings.nearMiss) post(r, 'half', p.id, text, new Set([p.id]));
+      return;
+    }
+    post(r, 'msg', p.id, text);
+    if (result === 'close') {
+      p.close++;
+      if (r.settings.nearMiss) post(r, 'close', p.id, text, new Set([p.id]));
+    }
+  }
+
+  function sayDuel(r, t, p, text) {
+    // A team's chat stays in the team while it draws: the others mustn't overhear the guesses.
+    const members = teamMembers(r, p.team);
+    members.add(p.id);
+    const team = t.teams.find((x) => x.team === p.team);
+    const knowsIt = Boolean(team && (team.drawer === p.id || team.done));
+    const result = judge(t.entry, text);
+    if (knowsIt) {
+      if (result) throw new GameError('spoiler', 409);
+      post(r, 'msg', p.id, text, members);
+      return;
+    }
+    if (result === 'right' && team) return teamGuessed(r, p, team);
+    post(r, 'msg', p.id, text, members);
+    if (result === 'close' || result === 'half') {
+      p.close++;
+      if (r.settings.nearMiss) post(r, result, p.id, text, new Set([p.id]));
+    }
   }
 
   function guessed(r, p) {
@@ -349,19 +525,36 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     maybeEnd(r);
   }
 
-  // ---- turns --------------------------------------------------------------------------------
+  // ---- the game -----------------------------------------------------------------------------
 
   function startGame(r) {
     const people = present(r);
-    if (people.length < 2) throw new GameError('too-few', 409);
+    const mode = r.settings.mode;
+    if (people.length < (mode === 'forger' ? 3 : 2)) throw new GameError(mode === 'forger' ? 'too-few-forger' : 'too-few', 409);
     const words = pool(r.settings);
     if (r.settings.onlyCustom && words.length < CUSTOM_LIMITS.min) throw new GameError('custom-few', 409);
-    if (words.length < (r.settings.wordMode === 'combo' ? 2 : 1)) throw new GameError('no-words', 409);
+    if (words.length < (r.settings.wordMode === 'combo' && mode !== 'forger' ? 2 : 1)) throw new GameError('no-words', 409);
+    if (mode === 'duel') {
+      for (const p of people) if (p.team === null || p.team >= r.settings.teams) p.team = smallestTeam(r);
+      if (teamLists(r).filter((m) => m.length).length < 2) throw new GameError('teams', 409);
+    } else for (const p of people) p.team = null;
     clearTimers(r);
-    r.game = { mode: r.settings.mode, rounds: r.settings.rounds, round: 0, queue: [], seen: new Set(), words, n: 0 };
+    r.game = {
+      mode,
+      rounds: r.settings.rounds,
+      round: 0,
+      queue: [],
+      seen: new Set(),
+      words,
+      n: 0,
+      teams: mode === 'duel' ? r.settings.teams : 0,
+      turnInRound: 0,
+      forgers: new Set(),
+    };
     r.gallery = [];
     r.awards = null;
     r.notice = null;
+    r.teamScores = mode === 'duel' ? Array(r.settings.teams).fill(0) : [];
     for (const p of r.players.values()) {
       p.score = 0;
       p.close = 0;
@@ -372,9 +565,66 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   function nextRound(r) {
     r.game.round++;
     if (r.game.round > r.game.rounds) return finish(r);
+    if (r.game.mode === 'forger') return forgerRound(r);
+    if (r.game.mode === 'duel') {
+      r.game.turnInRound = 0;
+      return duelTurn(r);
+    }
     r.game.queue = present(r).map((p) => p.id);
     nextTurn(r);
   }
+
+  /** After a turn's reveal: the next one, whatever the mode. */
+  function afterReveal(r) {
+    if (r.game.mode === 'forger') return nextRound(r);
+    if (r.game.mode === 'duel') return duelTurn(r);
+    return nextTurn(r);
+  }
+
+  /** Würze for a turn: none, the host's pick, or a random one. */
+  function pickSpice(r) {
+    const s = r.settings.spice;
+    if (s === 'off') return { spice: null, palette: null };
+    const spice = s === 'random' ? SPICES[randomInt(SPICES.length)] : s;
+    if (spice !== 'three') return { spice, palette: null };
+    const colors = [...SPICE_COLORS];
+    const palette = [];
+    while (palette.length < 3) palette.push(colors.splice(randomInt(colors.length), 1)[0]);
+    return { spice, palette };
+  }
+
+  /** What the server holds Würze to: one stroke, the ink budget, the three colours. */
+  function spiceFilter(t, drawing, ops) {
+    if (!t.spice || !Array.isArray(ops)) return ops;
+    let budget = INK_BUDGET - drawing.points;
+    let strokes = drawing.actions.filter((a) => a.k === 's').length;
+    const out = [];
+    for (const op of ops) {
+      if (!Array.isArray(op)) continue;
+      if (t.spice === 'oneline' && op[0] === 's') {
+        if (strokes >= 1) continue;
+        strokes++;
+      }
+      if (t.spice === 'oneline' && (op[0] === 'f' || op[0] === 'x')) continue;
+      if (t.spice === 'ink' && op[0] === 's') {
+        if (budget <= 0) continue;
+        budget--;
+      }
+      if (t.spice === 'ink' && op[0] === 'p') {
+        const n = Math.min(Math.floor((op.length - 2) / 3), Math.max(0, budget));
+        if (!n) continue;
+        budget -= n;
+        out.push(op.slice(0, 2 + n * 3));
+        continue;
+      }
+      if (t.spice === 'three' && op[0] === 's' && op[2] !== PAPER && !t.palette.includes(op[2])) continue;
+      if (t.spice === 'three' && op[0] === 'f' && !t.palette.includes(op[1])) continue;
+      out.push(op);
+    }
+    return out;
+  }
+
+  // ---- classic and blitz --------------------------------------------------------------------
 
   function nextTurn(r) {
     clearTimers(r);
@@ -383,8 +633,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     while (game.queue.length && !drawer) {
       const p = r.players.get(game.queue.shift());
       // Someone whose page is only reconnecting keeps the turn; gone for a while, they're skipped.
-      const gone = p && !isOnline(p) && p.offlineSince !== null && clock.now() - p.offlineSince >= DRAWER_GRACE;
-      if (p && !p.left && !gone) drawer = p;
+      if (p && !p.left && !goneFor(p, DRAWER_GRACE)) drawer = p;
     }
     if (!drawer) return nextRound(r);
     if (present(r).length < 2) return finish(r);
@@ -392,6 +641,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     if (!options.length) return finish(r);
     const now = clock.now();
     r.turn = {
+      kind: 'classic',
       n: ++game.n,
       round: game.round,
       drawer: drawer.id,
@@ -409,6 +659,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       points: new Map(),
       likes: new Map(),
       drawing: newDrawing(),
+      spice: null,
+      palette: null,
       ended: null,
       ending: false,
     };
@@ -425,6 +677,15 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     t.entry = t.choices[index];
     for (const e of t.entry.parts ?? [t.entry]) r.game.seen.add(e.word);
     clearTimers(r);
+    Object.assign(t, pickSpice(r));
+    startDrawing(r, t);
+    playBots(r, t);
+    touch(r);
+    sendCanvas(r);
+  }
+
+  /** The draw phase's clock and hints, for classic and duel turns. */
+  function startDrawing(r, t) {
     const now = clock.now();
     const total = r.settings.seconds * 1000;
     t.phase = 'draw';
@@ -433,7 +694,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     t.hints = hintOrder(t.entry.word, r.settings.hints, random);
     t.hintAt = hintTimes(t.hints.length, total, r.game.mode === 'blitz');
     r.phase = 'draw';
-    later(r, total, () => endTurn(r, 'time'));
+    later(r, total, () => (t.kind === 'duel' ? endDuel(r, 'time') : endTurn(r, 'time')));
     t.hintAt.forEach((at, i) =>
       later(r, at, () => {
         if (r.turn !== t || t.phase !== 'draw') return;
@@ -442,15 +703,20 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         touch(r);
       }),
     );
-    playBots(r, t);
-    touch(r);
-    sendCanvas(r);
   }
 
   /** Everyone who could guess has it: end after a beat. */
   function maybeEnd(r) {
     const t = r.turn;
     if (r.phase !== 'draw' || !t || t.ending) return;
+    if (t.kind === 'duel') {
+      if (t.teams.every((x) => x.done)) {
+        t.ending = true;
+        later(r, EARLY_END_MS, () => endDuel(r, 'all'));
+      }
+      return;
+    }
+    if (t.kind !== 'classic') return;
     const guessers = present(r).filter((p) => p.id !== t.drawer && isOnline(p));
     if (!guessers.length || guessers.some((p) => !t.guessed.has(p.id))) return;
     t.ending = true;
@@ -460,7 +726,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   /** @param {'time' | 'all' | 'skip' | 'drawer-gone'} reason */
   function endTurn(r, reason) {
     const t = r.turn;
-    if (!t || (t.phase !== 'draw' && t.phase !== 'choose')) return;
+    if (!t || t.kind !== 'classic' || (t.phase !== 'draw' && t.phase !== 'choose')) return;
     clearTimers(r);
     if (t.phase === 'choose') {
       // No word was drawn: straight on to the next turn.
@@ -486,10 +752,10 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     r.phase = 'reveal';
     const first = [...t.guessed.entries()].sort((a, b) => a[1].ms - b[1].ms)[0];
     r.gallery.push({
+      kind: 'classic',
       n: t.n,
       round: t.round,
       drawer: t.drawer,
-      drawerName: drawer?.name ?? '',
       word: t.entry.word,
       difficulty: t.entry.difficulty,
       drawing: t.drawing,
@@ -502,10 +768,308 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     });
     post(r, reason === 'skip' ? 'skip' : 'word', t.drawer, t.entry.word);
     later(r, REVEAL_MS, () => {
-      if (r.phase === 'reveal') nextTurn(r);
+      if (r.phase === 'reveal') afterReveal(r);
     });
     touch(r);
   }
+
+  // ---- team duel ----------------------------------------------------------------------------
+
+  function duelTurn(r) {
+    clearTimers(r);
+    const g = r.game;
+    const lists = teamLists(r);
+    const filled = lists.filter((m) => m.length);
+    if (filled.length < 2 || present(r).length < 2) return finish(r);
+    const size = Math.max(...filled.map((m) => m.length));
+    if (g.turnInRound >= size) return nextRound(r);
+    const index = g.turnInRound++;
+    const [entry] = drawChoices(g.words, 1, g.seen, r.settings.wordMode === 'combo', randomInt);
+    if (!entry) return finish(r);
+    for (const e of entry.parts ?? [entry]) g.seen.add(e.word);
+    const t = {
+      kind: 'duel',
+      n: ++g.n,
+      round: g.round,
+      drawer: null,
+      phase: 'draw',
+      entry,
+      startsAt: 0,
+      endsAt: 0,
+      hints: [],
+      hintAt: [],
+      shown: 0,
+      revealed: new Set(),
+      teams: lists
+        .map((members, team) => (members.length ? { team, drawer: members[index % members.length], drawing: newDrawing(), done: false, order: null, at: null, guesser: null, points: 0 } : null))
+        .filter(Boolean),
+      points: new Map(),
+      likes: new Map(),
+      ended: null,
+      ending: false,
+      ...pickSpice(r),
+    };
+    r.turn = t;
+    startDrawing(r, t);
+    playDuelBots(r, t);
+    touch(r);
+    sendCanvas(r);
+  }
+
+  function teamGuessed(r, p, team) {
+    const t = r.turn;
+    const now = clock.now();
+    const order = t.teams.filter((x) => x.done).length;
+    team.done = true;
+    team.order = order;
+    team.at = now - t.startsAt;
+    team.guesser = p.id;
+    team.points = guessPoints({ left: t.endsAt - now, total: t.endsAt - t.startsAt, order, difficulty: t.entry.difficulty });
+    post(r, 'team', p.id, String(team.team));
+    touch(r);
+    maybeEnd(r);
+  }
+
+  /** @param {'time' | 'all' | 'skip'} reason */
+  function endDuel(r, reason) {
+    const t = r.turn;
+    if (!t || t.kind !== 'duel' || t.phase !== 'draw') return;
+    clearTimers(r);
+    for (const team of t.teams) {
+      if (!team.done) continue;
+      // The guesser and the team's drawer both get the team's points.
+      for (const id of new Set([team.guesser, team.drawer])) {
+        const p = r.players.get(id);
+        if (p) p.score += team.points;
+        t.points.set(id, (t.points.get(id) ?? 0) + team.points);
+      }
+      r.teamScores[team.team] += team.points;
+    }
+    t.phase = 'reveal';
+    t.ended = reason;
+    t.revealEndsAt = clock.now() + REVEAL_MS;
+    r.phase = 'reveal';
+    for (const team of t.teams) {
+      r.gallery.push({
+        kind: 'duel',
+        n: t.n * 10 + team.team,
+        round: t.round,
+        drawer: team.drawer,
+        team: team.team,
+        word: t.entry.word,
+        difficulty: t.entry.difficulty,
+        drawing: team.drawing,
+        turn: t,
+        likes: 0,
+        dislikes: 0,
+        guessed: team.done ? 1 : 0,
+        possible: 1,
+        first: team.done ? { player: team.guesser, ms: team.at } : null,
+      });
+    }
+    post(r, reason === 'skip' ? 'skip' : 'word', t.teams[0]?.drawer ?? '', t.entry.word);
+    later(r, REVEAL_MS, () => {
+      if (r.phase === 'reveal') afterReveal(r);
+    });
+    touch(r);
+    // Now everyone may see every team's drawing.
+    sendCanvas(r);
+  }
+
+  // ---- Fälscher -----------------------------------------------------------------------------
+
+  function forgerRound(r) {
+    clearTimers(r);
+    const g = r.game;
+    const people = present(r);
+    if (people.length < 3) return finish(r);
+    let candidates = people.filter((p) => !g.forgers.has(p.id) && !goneFor(p, DRAWER_GRACE));
+    if (!candidates.length) {
+      g.forgers.clear();
+      candidates = people.filter((p) => !goneFor(p, DRAWER_GRACE));
+    }
+    const forger = candidates[randomInt(candidates.length)] ?? people[0];
+    g.forgers.add(forger.id);
+    const [entry] = drawChoices(g.words, 1, g.seen, false, randomInt);
+    if (!entry) return finish(r);
+    g.seen.add(entry.word);
+    const order = shuffled(people.map((p) => p.id));
+    // The forger never opens: the first stroke shows the word to everyone who knows it.
+    if (order[0] === forger.id) [order[0], order[1]] = [order[1], order[0]];
+    const now = clock.now();
+    const t = {
+      kind: 'forger',
+      n: ++g.n,
+      round: g.round,
+      phase: 'forge',
+      entry,
+      category: entry.pack,
+      forger: forger.id,
+      order,
+      laps: r.settings.laps,
+      step: -1,
+      stroke: null,
+      colors: new Map(order.map((id, i) => [id, FORGER_COLORS[i % FORGER_COLORS.length]])),
+      drawing: newDrawing(),
+      votes: new Map(),
+      caught: null,
+      forgerGuess: null,
+      forgerRight: null,
+      points: new Map(),
+      likes: new Map(),
+      startsAt: now,
+      endsAt: 0,
+      ended: null,
+    };
+    r.turn = t;
+    r.phase = 'forge';
+    sendCanvas(r);
+    nextStroke(r);
+  }
+
+  function nextStroke(r) {
+    const t = r.turn;
+    if (!t || t.kind !== 'forger' || t.phase !== 'forge') return;
+    clearTimers(r);
+    const total = t.order.length * t.laps;
+    let p = null;
+    while (!p) {
+      t.step++;
+      if (t.step >= total) return startVote(r);
+      const candidate = r.players.get(t.order[t.step % t.order.length]);
+      if (candidate && !candidate.left && !goneFor(candidate, STROKE_GRACE)) p = candidate;
+    }
+    const ms = r.settings.strokeSeconds * 1000;
+    t.stroke = { player: p.id, endsAt: clock.now() + ms, started: false, id: null };
+    later(r, ms, () => nextStroke(r));
+    if (p.bot) {
+      later(r, 700 + randomInt(900), () => {
+        if (r.turn !== t || t.stroke?.player !== p.id) return;
+        const ops = squiggle(t, 2000 + t.step, t.colors.get(p.id), 1);
+        t.stroke.started = true;
+        sendInk(r, t.n, applyOps(t.drawing, ops), { except: p.id });
+        later(r, 500, () => t.stroke?.player === p.id && nextStroke(r));
+      });
+    }
+    touch(r);
+  }
+
+  function startVote(r) {
+    const t = r.turn;
+    clearTimers(r);
+    t.phase = 'vote';
+    t.stroke = null;
+    t.endsAt = clock.now() + VOTE_MS;
+    r.phase = 'vote';
+    later(r, VOTE_MS, () => endVote(r));
+    for (const p of present(r)) {
+      if (!p.bot) continue;
+      later(r, 1000 + randomInt(5000), () => {
+        if (r.turn !== t || t.phase !== 'vote') return;
+        const others = present(r).filter((q) => q.id !== p.id);
+        // An artist bot sees through the forger half the time.
+        const target = p.id !== t.forger && random() < 0.5 ? t.forger : others[randomInt(others.length)]?.id;
+        if (target) vote(r, p, target);
+      });
+    }
+    touch(r);
+  }
+
+  function vote(r, p, target) {
+    const t = r.turn;
+    const q = r.players.get(String(target ?? ''));
+    if (!q || q.left || q.id === p.id) throw new GameError('vote');
+    t.votes.set(p.id, q.id);
+    touch(r);
+    const waiting = present(r).filter((x) => isOnline(x) && !t.votes.has(x.id));
+    if (!waiting.length && !t.ending) {
+      t.ending = true;
+      later(r, 800, () => endVote(r));
+    }
+  }
+
+  function endVote(r) {
+    const t = r.turn;
+    if (!t || t.kind !== 'forger' || t.phase !== 'vote') return;
+    clearTimers(r);
+    t.ending = false;
+    const tally = new Map();
+    for (const target of t.votes.values()) tally.set(target, (tally.get(target) ?? 0) + 1);
+    const top = Math.max(0, ...tally.values());
+    const leaders = [...tally.entries()].filter(([, n]) => n === top && n > 0).map(([id]) => id);
+    // A tie lets the forger slip away.
+    t.caught = leaders.length === 1 && leaders[0] === t.forger;
+    if (!t.caught) return forgerReveal(r, 'escaped');
+    t.phase = 'unmask';
+    t.endsAt = clock.now() + UNMASK_MS;
+    r.phase = 'unmask';
+    later(r, UNMASK_MS, () => forgerReveal(r, 'caught'));
+    const forger = r.players.get(t.forger);
+    if (forger?.bot) {
+      later(r, 2500, () => {
+        if (r.turn !== t || t.phase !== 'unmask') return;
+        unmask(r, forger, random() < 0.4 ? t.entry.word : BOT_MISSES[randomInt(BOT_MISSES.length)]);
+      });
+    }
+    touch(r);
+  }
+
+  function unmask(r, p, raw) {
+    const t = r.turn;
+    if (p.id !== t.forger) throw new GameError('not-forger', 403);
+    const text = cleanText(raw, LIMITS.message);
+    if (!text) throw new GameError('empty');
+    t.forgerGuess = text;
+    t.forgerRight = judge(t.entry, text) === 'right';
+    forgerReveal(r, t.forgerRight ? 'guessed' : 'caught');
+  }
+
+  /** @param {'escaped' | 'caught' | 'guessed' | 'forger-gone' | 'skip'} reason */
+  function forgerReveal(r, reason) {
+    const t = r.turn;
+    if (!t || t.kind !== 'forger' || t.phase === 'reveal') return;
+    clearTimers(r);
+    const give = (id, points) => {
+      const p = r.players.get(id);
+      if (p) p.score += points;
+      t.points.set(id, (t.points.get(id) ?? 0) + points);
+    };
+    if (reason === 'escaped') give(t.forger, FORGER_POINTS.escaped);
+    else if (reason === 'guessed') give(t.forger, FORGER_POINTS.guessed);
+    else if (reason === 'caught') {
+      for (const id of t.order) {
+        if (id === t.forger) continue;
+        give(id, FORGER_POINTS.artists + (t.votes.get(id) === t.forger ? FORGER_POINTS.vote : 0));
+      }
+    }
+    t.phase = 'reveal';
+    t.ended = reason;
+    t.stroke = null;
+    t.revealEndsAt = clock.now() + FORGER_REVEAL_MS;
+    r.phase = 'reveal';
+    r.gallery.push({
+      kind: 'forger',
+      n: t.n,
+      round: t.round,
+      drawer: t.forger,
+      word: t.entry.word,
+      difficulty: t.entry.difficulty,
+      drawing: t.drawing,
+      turn: t,
+      likes: 0,
+      dislikes: 0,
+      guessed: t.caught ? 1 : 0,
+      possible: 1,
+      first: null,
+    });
+    post(r, 'word', t.forger, t.entry.word);
+    later(r, FORGER_REVEAL_MS, () => {
+      if (r.phase === 'reveal') afterReveal(r);
+    });
+    touch(r);
+  }
+
+  // ---- the end ------------------------------------------------------------------------------
 
   function finish(r) {
     clearTimers(r);
@@ -515,7 +1079,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     for (const g of r.gallery) {
       g.likes = 0;
       g.dislikes = 0;
-      for (const v of g.turn.likes.values()) v > 0 ? g.likes++ : g.dislikes++;
+      const likes = g.turn.likes;
+      for (const v of likes.values()) v > 0 ? g.likes++ : g.dislikes++;
     }
     r.awards = awards(r);
     touch(r);
@@ -525,34 +1090,53 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     const out = {};
     const liked = [...r.gallery].filter((g) => g.likes > 0).sort((a, b) => b.likes - b.dislikes - (a.likes - a.dislikes) || a.n - b.n)[0];
     if (liked) out.liked = { n: liked.n, drawer: liked.drawer, word: liked.word, likes: liked.likes };
-    const fastest = r.gallery.filter((g) => g.first).sort((a, b) => a.first.ms - b.first.ms)[0];
+    const guessable = r.gallery.filter((g) => g.kind !== 'forger');
+    const fastest = guessable.filter((g) => g.first).sort((a, b) => a.first.ms - b.first.ms)[0];
     if (fastest) out.fastest = { player: fastest.first.player, ms: fastest.first.ms, word: fastest.word };
     const close = present(r).filter((p) => p.close > 0).sort((a, b) => b.close - a.close)[0];
     if (close) out.close = { player: close.id, count: close.close };
-    const unsolved = r.gallery.find((g) => g.guessed === 0);
+    const unsolved = guessable.find((g) => g.guessed === 0);
     if (unsolved) out.unsolved = { n: unsolved.n, drawer: unsolved.drawer, word: unsolved.word };
+    const escaped = r.gallery.filter((g) => g.kind === 'forger' && g.turn.ended === 'escaped');
+    if (escaped.length) {
+      const counts = new Map();
+      for (const g of escaped) counts.set(g.drawer, (counts.get(g.drawer) ?? 0) + 1);
+      const [player, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      out.forger = { player, count };
+    }
     return out;
   }
 
   // ---- ink ----------------------------------------------------------------------------------
 
-  function sendInk(r, n, ops) {
+  /**
+   * Ink to the pages that may see it: everyone but the one drawing, or (a duel's team canvas) only
+   * the team and the big screen.
+   */
+  function sendInk(r, n, ops, { except = null, team = null } = {}) {
     if (!ops.length) return;
-    const data = JSON.stringify({ turn: n, ops });
-    for (const s of r.subscribers) if (s.player !== r.turn?.drawer) s.send('ink', data);
+    const data = JSON.stringify({ turn: n, team, ops });
+    const members = team === null ? null : teamMembers(r, team);
+    for (const s of r.subscribers) {
+      if (s.player === except) continue;
+      if (members && s.player !== null && !members.has(s.player)) continue;
+      s.send('ink', data);
+    }
   }
 
-  /** The drawing so far, for a page that arrives or comes back (or a new turn's empty canvas). */
-  function canvasFor(r) {
+  /** The canvases one page may see: the whole drawing so far (a duel: its team's, all at the end). */
+  function canvasesFor(r, playerId) {
     const t = r.turn;
-    if (!t || t.phase === 'choose') return null;
-    return JSON.stringify({ turn: t.n, ops: toOps(t.drawing) });
+    if (!t || t.phase === 'choose') return [];
+    if (t.kind !== 'duel') return [{ turn: t.n, team: null, ops: toOps(t.drawing) }];
+    const p = playerId ? r.players.get(playerId) : null;
+    return t.teams
+      .filter((x) => t.phase === 'reveal' || !p || x.team === p.team)
+      .map((x) => ({ turn: t.n, team: x.team, ops: toOps(x.drawing) }));
   }
 
   function sendCanvas(r) {
-    const data = canvasFor(r);
-    if (!data) return;
-    for (const s of r.subscribers) s.send('canvas', data);
+    for (const s of r.subscribers) for (const c of canvasesFor(r, s.player)) s.send('canvas', JSON.stringify(c));
   }
 
   // ---- bots ---------------------------------------------------------------------------------
@@ -562,10 +1146,10 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     const total = t.endsAt - t.startsAt;
     const drawer = r.players.get(t.drawer);
     if (drawer?.bot) {
-      for (let k = 0; k < 9; k++) {
+      for (let k = 0; k < (t.spice === 'oneline' ? 1 : 9); k++) {
         later(r, 500 + k * Math.min(1100, total / 12), () => {
           if (r.turn !== t || t.phase !== 'draw') return;
-          sendInk(r, t.n, applyOps(t.drawing, squiggle(t, 1000 + k)));
+          sendInk(r, t.n, applyOps(t.drawing, spiceFilter(t, t.drawing, squiggle(t, 1000 + k, t.palette?.[0]))), { except: drawer.id });
         });
       }
     }
@@ -582,6 +1166,29 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     }
   }
 
+  function playDuelBots(r, t) {
+    const total = t.endsAt - t.startsAt;
+    for (const team of t.teams) {
+      const drawer = r.players.get(team.drawer);
+      if (drawer?.bot) {
+        for (let k = 0; k < 6; k++) {
+          later(r, 500 + k * Math.min(1300, total / 10), () => {
+            if (r.turn !== t || t.phase !== 'draw') return;
+            sendInk(r, t.n, applyOps(team.drawing, spiceFilter(t, team.drawing, squiggle(t, 1000 + k, t.palette?.[0]))), { except: drawer.id, team: team.team });
+          });
+        }
+      }
+      const guessers = present(r).filter((p) => p.bot && p.team === team.team && p.id !== team.drawer);
+      for (const p of guessers) {
+        if (random() < 0.6) {
+          later(r, total * (0.2 + random() * 0.6), () => {
+            if (r.turn === t && t.phase === 'draw' && !team.done) teamGuessed(r, p, team);
+          });
+        }
+      }
+    }
+  }
+
   function safeSay(r, p, text) {
     try {
       say(r, p, text);
@@ -590,11 +1197,12 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     }
   }
 
-  function squiggle(t, id) {
+  function squiggle(t, id, color = randomInt(PALETTE_SIZE), size = randomInt(3)) {
     const at = () => clock.now() - t.startsAt;
     let x = 120 + randomInt(W - 240);
     let y = 100 + randomInt(H - 200);
-    const ops = [['s', id, randomInt(PALETTE_SIZE), randomInt(3), x, y, at()]];
+    const c = color === PAPER ? 0 : color;
+    const ops = [['s', id, c, size, x, y, at()]];
     const pts = [];
     for (let i = 0; i < 14; i++) {
       x = Math.min(W, Math.max(0, x + randomInt(81) - 40));
@@ -632,8 +1240,11 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       return;
     }
     if (r.host === p.id) r.host = (people.find((q) => q.online > 0) ?? people[0]).id;
-    if (r.game && r.phase !== 'final' && present(r).length < 2) return finish(r);
-    if (r.turn && r.turn.drawer === p.id && (r.phase === 'draw' || r.phase === 'choose')) return endTurn(r, 'drawer-gone');
+    const t = r.turn;
+    if (r.game && r.phase !== 'final' && present(r).length < (r.game.mode === 'forger' ? 3 : 2)) return finish(r);
+    if (t?.kind === 'classic' && t.drawer === p.id && (r.phase === 'draw' || r.phase === 'choose')) return endTurn(r, 'drawer-gone');
+    if (t?.kind === 'forger' && t.forger === p.id && ['forge', 'vote', 'unmask'].includes(r.phase)) return forgerReveal(r, 'forger-gone');
+    if (t?.kind === 'forger' && r.phase === 'forge' && t.stroke?.player === p.id) return nextStroke(r);
     touch(r);
     maybeEnd(r);
   }
@@ -662,6 +1273,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         turn: null,
         gallery: [],
         awards: null,
+        teamScores: [],
         chat: [],
         chatSeq: 0,
         notice: null,
@@ -709,7 +1321,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     gallery(code) {
       const r = room(code);
       if (r.phase !== 'final') throw new GameError('wrong-phase', 409);
-      return r.gallery.map((g) => ({ n: g.n, drawer: g.drawer, word: g.word, ops: toOps(g.drawing) }));
+      return r.gallery.map((g) => ({ n: g.n, drawer: g.drawer, word: g.word, kind: g.kind, team: g.team ?? null, ops: toOps(g.drawing) }));
     },
 
     /**
@@ -730,8 +1342,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         me.offlineSince = null;
       }
       send('view', JSON.stringify(view(r, me)));
-      const canvas = canvasFor(r);
-      if (canvas) send('canvas', canvas);
+      for (const c of canvasesFor(r, sub.player)) send('canvas', JSON.stringify(c));
       const lines = r.chat.filter((line) => sees(line, sub.player)).map(shownLine);
       if (lines.length) send('chat', JSON.stringify({ lines, backlog: true }));
       if (me && me.online === 1) touch(r);
@@ -756,13 +1367,18 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       const r = room(code);
       const p = player(r, token);
       r.touched = clock.now();
+      const t = r.turn;
 
       switch (action) {
         case 'settings': {
           requireHost(r, p);
           requirePhase(r, 'lobby', 'final');
+          const before = { mode: r.settings.mode, teams: r.settings.teams };
           r.settings = mergeSettings(r.settings, body);
           r.customCount = parseCustom(r.settings.custom).length;
+          if (r.phase === 'lobby' && (r.settings.mode !== before.mode || r.settings.teams !== before.teams)) {
+            if (r.settings.mode === 'duel' || before.mode === 'duel') spreadTeams(r);
+          }
           r.notice = null;
           touch(r);
           return;
@@ -775,9 +1391,9 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         }
         case 'choose': {
           requirePhase(r, 'choose');
-          if (r.turn.drawer !== p.id) throw new GameError('not-drawer', 403);
+          if (t.drawer !== p.id) throw new GameError('not-drawer', 403);
           const index = body?.index;
-          if (!Number.isInteger(index) || index < 0 || index >= r.turn.choices.length) throw new GameError('choice');
+          if (!Number.isInteger(index) || index < 0 || index >= t.choices.length) throw new GameError('choice');
           choose(r, index);
           return;
         }
@@ -786,20 +1402,48 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           return;
         }
         case 'ink': {
-          requirePhase(r, 'draw');
-          if (r.turn.drawer !== p.id) throw new GameError('not-drawer', 403);
+          requirePhase(r, 'draw', 'forge');
           // A batch from a turn that's over (sent just as time ran out) is dropped quietly.
-          if (body?.turn !== r.turn.n) return;
-          sendInk(r, r.turn.n, applyOps(r.turn.drawing, body?.ops));
+          if (body?.turn !== t.n) return;
+          if (t.kind === 'classic') {
+            if (t.drawer !== p.id) throw new GameError('not-drawer', 403);
+            sendInk(r, t.n, applyOps(t.drawing, spiceFilter(t, t.drawing, body?.ops)), { except: p.id });
+            return;
+          }
+          if (t.kind === 'duel') {
+            const team = t.teams.find((x) => x.drawer === p.id);
+            if (!team) throw new GameError('not-drawer', 403);
+            sendInk(r, t.n, applyOps(team.drawing, spiceFilter(t, team.drawing, body?.ops)), { except: p.id, team: team.team });
+            return;
+          }
+          if (t.stroke?.player !== p.id) throw new GameError('not-drawer', 403);
+          sendInk(r, t.n, applyOps(t.drawing, forgerOps(t, p, body?.ops)), { except: p.id });
+          return;
+        }
+        case 'pass': {
+          // Fälscher: the stroke is done, the next player's turn.
+          requirePhase(r, 'forge');
+          if (t.stroke?.player !== p.id) throw new GameError('not-drawer', 403);
+          nextStroke(r);
+          return;
+        }
+        case 'vote': {
+          requirePhase(r, 'vote');
+          vote(r, p, body?.player);
+          return;
+        }
+        case 'unmask': {
+          requirePhase(r, 'unmask');
+          unmask(r, p, body?.text);
           return;
         }
         case 'like': {
-          requirePhase(r, 'draw', 'reveal');
-          if (r.turn.drawer === p.id) throw new GameError('own-drawing', 409);
+          requirePhase(r, 'draw', 'reveal', 'forge', 'vote');
+          if (isDrawer(t, p.id)) throw new GameError('own-drawing', 409);
           const value = body?.value;
           if (value !== 1 && value !== -1 && value !== 0) throw new GameError('like');
-          if (value) r.turn.likes.set(p.id, value);
-          else r.turn.likes.delete(p.id);
+          if (value) t.likes.set(p.id, value);
+          else t.likes.delete(p.id);
           touch(r);
           return;
         }
@@ -815,8 +1459,10 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         }
         case 'skip': {
           requireHost(r, p);
-          requirePhase(r, 'choose', 'draw');
-          endTurn(r, 'skip');
+          requirePhase(r, 'choose', 'draw', 'forge', 'vote', 'unmask');
+          if (t.kind === 'duel') endDuel(r, 'skip');
+          else if (t.kind === 'forger') forgerReveal(r, 'skip');
+          else endTurn(r, 'skip');
           return;
         }
         case 'rematch': {
@@ -828,11 +1474,29 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           r.turn = null;
           r.gallery = [];
           r.awards = null;
+          r.teamScores = [];
           for (const q of [...r.players.values()]) {
             if (q.left) r.players.delete(q.id);
             q.score = 0;
             q.close = 0;
           }
+          if (r.settings.mode === 'duel') for (const q of present(r)) if (q.team === null || q.team >= r.settings.teams) q.team = smallestTeam(r);
+          touch(r);
+          return;
+        }
+        case 'team': {
+          requirePhase(r, 'lobby');
+          const team = body?.team;
+          if (r.settings.mode !== 'duel' || !Number.isInteger(team) || team < 0 || team >= r.settings.teams) throw new GameError('team');
+          p.team = team;
+          touch(r);
+          return;
+        }
+        case 'shuffle': {
+          requireHost(r, p);
+          requirePhase(r, 'lobby');
+          if (r.settings.mode !== 'duel') throw new GameError('team');
+          spreadTeams(r, true);
           touch(r);
           return;
         }
@@ -894,12 +1558,19 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           }
         }
         const t = r.turn;
-        if (t && (r.phase === 'draw' || r.phase === 'choose')) {
+        if (!t) continue;
+        if (t.kind === 'classic' && (r.phase === 'draw' || r.phase === 'choose')) {
           const drawer = r.players.get(t.drawer);
-          if (drawer && !drawer.bot && drawer.online === 0 && drawer.offlineSince !== null && now - drawer.offlineSince >= DRAWER_GRACE) endTurn(r, 'drawer-gone');
+          if (drawer && !drawer.bot && goneFor(drawer, DRAWER_GRACE)) endTurn(r, 'drawer-gone');
           else if (r.phase === 'draw' && now >= t.endsAt + 2000) endTurn(r, 'time');
           else if (r.phase === 'choose' && now >= t.chooseEndsAt + 2000) choose(r, randomInt(t.choices.length));
-        } else if (r.phase === 'reveal' && t && now >= t.revealEndsAt + 2000) nextTurn(r);
+        } else if (t.kind === 'duel' && r.phase === 'draw' && now >= t.endsAt + 2000) endDuel(r, 'time');
+        else if (t.kind === 'forger' && r.phase === 'forge' && t.stroke) {
+          const p = r.players.get(t.stroke.player);
+          if (now >= t.stroke.endsAt + 2000 || (p && !p.bot && goneFor(p, STROKE_GRACE))) nextStroke(r);
+        } else if (t.kind === 'forger' && r.phase === 'vote' && now >= t.endsAt + 2000) endVote(r);
+        else if (t.kind === 'forger' && r.phase === 'unmask' && now >= t.endsAt + 2000) forgerReveal(r, 'caught');
+        else if (r.phase === 'reveal' && now >= t.revealEndsAt + 2000) afterReveal(r);
       }
     },
 
@@ -912,6 +1583,22 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
       rooms.clear();
     },
   };
+
+  /** Fälscher: one stroke per turn, in the player's own colour, nothing else. */
+  function forgerOps(t, p, ops) {
+    if (!Array.isArray(ops)) return [];
+    const color = t.colors.get(p.id) ?? 0;
+    const out = [];
+    for (const op of ops) {
+      if (!Array.isArray(op)) continue;
+      if (op[0] === 's' && !t.stroke.started) {
+        t.stroke.started = true;
+        t.stroke.id = op[1];
+        out.push(['s', op[1], color, Math.min(Number(op[3]) || 1, 2), ...op.slice(4)]);
+      } else if (op[0] === 'p' && t.stroke.started && op[1] === t.stroke.id) out.push(op);
+    }
+    return out;
+  }
 }
 
 /**
@@ -954,5 +1641,9 @@ export function mergeSettings(current, body) {
   if (typeof body?.custom === 'string') next.custom = parseCustom(body.custom).join(', ');
   if (typeof body?.onlyCustom === 'boolean') next.onlyCustom = body.onlyCustom;
   if (typeof body?.nearMiss === 'boolean') next.nearMiss = body.nearMiss;
+  if (SPICE_CHOICES.includes(body?.spice)) next.spice = body.spice;
+  if (TEAM_CHOICES.includes(body?.teams)) next.teams = body.teams;
+  if (LAP_CHOICES.includes(body?.laps)) next.laps = body.laps;
+  if (STROKE_CHOICES.includes(body?.strokeSeconds)) next.strokeSeconds = body.strokeSeconds;
   return next;
 }

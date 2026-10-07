@@ -152,4 +152,57 @@ export default {
       "drone", "zipper|zip", "safety pin", "bookmark", "wind turbine",
     ],
   },
+  travel: {
+    easy: [
+      "suitcase|luggage|baggage", "passport", "map", "hotel", "sunglasses", "swimsuit|bathing suit",
+      "postcard", "deck chair", "beach umbrella|parasol", "taxi", "bus", "ferry", "caravan",
+      "sleeping bag", "pyramid",
+    ],
+    medium: [
+      "campsite|campground", "campfire", "ticket", "sandcastle",
+      "sunscreen|sun cream|suntan lotion", "walking stick|hiking stick", "guidebook|travel guide",
+      "cruise ship", "suspension bridge", "souvenir", "tour bus", "signpost", "life ring|lifebuoy",
+      "luggage trolley|luggage cart|baggage cart", "cable car",
+    ],
+    hard: [
+      "vacation|holiday", "sunburn", "homesickness", "wanderlust", "time zone", "passport control",
+      "layover|stopover", "flight delay", "road trip", "sightseeing", "backpacking", "hitchhiking",
+      "packing", "lost luggage", "rental car", "scenic route",
+    ],
+  },
+  hobbies: {
+    easy: [
+      "yarn|wool", "knitting needle", "paintbrush", "easel", "record player|turntable", "harmonica",
+      "drum", "violin|fiddle", "flute", "domino", "stamp|postage stamp", "necklace",
+      "colored pencil|coloured pencil", "headphones", "ukulele", "kite",
+    ],
+    medium: [
+      "sewing machine", "model train|model railway", "telescope", "soap bubbles", "board game",
+      "pottery wheel", "birdhouse", "photo album", "origami", "crossword|crossword puzzle",
+      "paint set", "crochet hook", "raised bed", "sketchbook|sketch pad", "flower pot|plant pot",
+    ],
+    hard: [
+      "knitting", "pottery", "crafting|handicraft", "gardening", "collecting", "dancing", "singing",
+      "painting", "reading", "crocheting", "sewing", "woodworking", "bird watching", "stargazing",
+      "game night", "photography",
+    ],
+  },
+  fantasy: {
+    easy: [
+      "dragon", "unicorn", "fairy", "mermaid", "magic wand|wand", "witch", "princess", "giant",
+      "dwarf", "ghost", "wizard", "elf", "troll", "goblin", "treasure chest|treasure box",
+    ],
+    medium: [
+      "castle ghost", "treasure map", "potion|magic potion", "broomstick|flying broom",
+      "flying carpet|magic carpet", "magic mirror", "dragon egg", "fairy wings", "storybook",
+      "magic lamp|genie lamp", "enchanted forest", "fairy dust|pixie dust", "sea monster",
+      "crystal ball", "wizard hat", "cloud castle",
+    ],
+    hard: [
+      "treasure hunt", "time travel", "invisibility", "shapeshifting|transformation", "fairy tale",
+      "magic spell|spell", "wishing well", "cauldron", "genie", "fortune teller",
+      "mythical creature|fantasy creature", "mind reading", "magic trick", "fairy ring",
+      "magic portal|portal", "curse|hex",
+    ],
+  },
 };

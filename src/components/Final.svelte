@@ -6,17 +6,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, ApiError, type View } from '../lib/api';
-  import { errorText, num, t } from '../lib/i18n.svelte';
+  import { errorText, num, t, type Key } from '../lib/i18n.svelte';
   import { duration, H, paintAll, render, toActions, W, type Action } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
 
   let { room, view, onleave }: { room: Room; view: View; onleave: () => void } = $props();
 
-  type Drawing = { n: number; drawer: string; word: string; actions: Action[]; thumb: string; likes: number };
+  type Drawing = { n: number; drawer: string; word: string; actions: Action[]; thumb: string; likes: number; kind: string; team: number | null };
   let drawings: Drawing[] = $state([]);
   let loading = $state(true);
   let open: Drawing | null = $state(null);
+  /** The drawing the sheet shows: kept until its exit animation is over (its close event). */
+  let shownDrawing: Drawing | null = $state(null);
+  $effect(() => {
+    if (open) shownDrawing = open;
+  });
   let error = $state('');
   let replayCanvas: HTMLCanvasElement | undefined = $state();
   let frame = 0;
@@ -28,6 +33,9 @@
   const isHost = $derived(view.me === view.host);
   const awards = $derived(view.final?.awards ?? {});
   const hostName = $derived(names.get(view.host) ?? '');
+  const teamScores = $derived(view.teams ? view.teams.map((score, team) => ({ team, score })).sort((a, b) => b.score - a.score) : null);
+  const teamTie = $derived(Boolean(teamScores && teamScores.length > 1 && teamScores[0].score === teamScores[1].score));
+  const teamName = (team: number) => t(`team_${team}` as Key);
 
   onMount(() => {
     api.gallery(view.code).then(
@@ -47,7 +55,7 @@
   /** The timelapse: the whole drawing in its own rhythm, squeezed into at most eight seconds. */
   function replay() {
     cancelAnimationFrame(frame);
-    const d = open;
+    const d = shownDrawing;
     const canvas = replayCanvas;
     if (!d || !canvas) return;
     const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -67,7 +75,7 @@
   }
 
   $effect(() => {
-    if (open && replayCanvas) replay();
+    if (open && shownDrawing && replayCanvas) replay();
   });
 
   async function save(canvas: HTMLCanvasElement, name: string) {
@@ -164,7 +172,19 @@
 </script>
 
 <div class="final">
-  <h1 class="display title"><span class="hl">{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}</span></h1>
+  <h1 class="display title">
+    <span class="hl">
+      {#if teamScores}{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}{:else}{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}{/if}
+    </span>
+  </h1>
+
+  {#if teamScores}
+    <ol class="teams">
+      {#each teamScores as x, i (x.team)}
+        <li class:first={i === 0}><span class="team-tag t{x.team}">{t('teamName', { name: teamName(x.team) })}</span><span class="score">{num(x.score)}</span></li>
+      {/each}
+    </ol>
+  {/if}
 
   <ol class="podium">
     {#each podium as p (p.id)}
@@ -191,6 +211,7 @@
       {#if awards.liked}<li class="box"><span class="label">{t('award_liked')}</span><span><b>{awards.liked.word}</b>{` · ${names.get(awards.liked.drawer) ?? ''} ♥ ${awards.liked.likes}`}</span></li>{/if}
       {#if awards.fastest}<li class="box alt"><span class="label">{t('award_fastest')}</span><span><b>{t('awardFastest', { name: names.get(awards.fastest.player) ?? '', s: num(Math.round(awards.fastest.ms / 100) / 10) })}</b>{` · ${awards.fastest.word}`}</span></li>{/if}
       {#if awards.close}<li class="box"><span class="label">{t('award_close')}</span><span><b>{t('awardClose', { name: names.get(awards.close.player) ?? '', n: awards.close.count })}</b></span></li>{/if}
+      {#if awards.forger}<li class="box"><span class="label">{t('award_forger')}</span><span><b>{t('awardForger', { name: names.get(awards.forger.player) ?? '', n: awards.forger.count })}</b></span></li>{/if}
       {#if awards.unsolved}<li class="box alt"><span class="label">{t('award_unsolved')}</span><span><b>{awards.unsolved.word}</b>{` · ${names.get(awards.unsolved.drawer) ?? ''}`}</span></li>{/if}
     </ul>
   {/if}
@@ -216,7 +237,12 @@
               <img src={d.thumb} alt="" width="360" height="270" />
               <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" /></svg></span>
             </button>
-            <span class="meta"><b>{d.word}</b><span>{(names.get(d.drawer) ?? '') + (d.likes ? ` · ♥ ${d.likes}` : '')}</span></span>
+            <span class="meta">
+              <b>{d.word}</b>
+              <span>
+                {#if d.team !== null}<i class="dot t{d.team}" aria-hidden="true"></i>{/if}{(d.kind === 'forger' ? t('forgerTag', { name: names.get(d.drawer) ?? '' }) : (names.get(d.drawer) ?? '')) + (d.likes ? ` · ♥ ${d.likes}` : '')}
+              </span>
+            </span>
           </li>
         {/each}
       </ul>
@@ -229,15 +255,24 @@
   <button class="btn quiet leave" type="button" onclick={onleave}>{t('leaveGame')}</button>
 </div>
 
-<ewo-sheet open={Boolean(open)} wide label={open?.word ?? ''} oncancel={() => (open = null)} onclose={() => (open = null)}>
-  <span slot="heading" class="display sheet-title">{open?.word ?? ''}</span>
-  {#if open}
+<ewo-sheet
+  open={Boolean(open)}
+  wide
+  label={shownDrawing?.word ?? ''}
+  oncancel={() => (open = null)}
+  onclose={() => {
+    open = null;
+    shownDrawing = null;
+  }}
+>
+  <span slot="heading" class="display sheet-title">{shownDrawing?.word ?? ''}</span>
+  {#if shownDrawing}
     <div class="replay">
       <canvas bind:this={replayCanvas} class="paper"></canvas>
-      <p class="by">{t('by', { name: names.get(open.drawer) ?? '' })}</p>
+      <p class="by">{t('by', { name: names.get(shownDrawing.drawer) ?? '' })}</p>
       <div class="row">
         <button class="btn small" type="button" onclick={replay}>{t('replay')}</button>
-        <button class="btn small" type="button" onclick={() => open && downloadOne(open)}>{t('downloadPng')}</button>
+        <button class="btn small" type="button" onclick={() => shownDrawing && downloadOne(shownDrawing)}>{t('downloadPng')}</button>
       </div>
     </div>
   {/if}
@@ -259,6 +294,44 @@
     text-align: center;
     text-wrap: balance;
   }
+  .teams {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .teams li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 700 15px/1.2 var(--ewo-sans);
+  }
+  .teams li.first {
+    font-size: 18px;
+  }
+  .teams .score {
+    font-family: var(--ewo-mono);
+  }
+  .team-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: #ffffff;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 5px;
+    border-radius: 50%;
+  }
+  .t0 { background: #c9341f; }
+  .t1 { background: #2d5bd8; }
+  .t2 { background: #8a6d00; }
+  .t3 { background: #1f7a45; }
   .podium {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 150px));

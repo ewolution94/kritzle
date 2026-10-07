@@ -3,12 +3,14 @@
 import type { Avatar } from './avatar';
 import type { Op } from './ink';
 
-export type Phase = 'lobby' | 'choose' | 'draw' | 'reveal' | 'final' | 'gone';
-export type Mode = 'classic' | 'blitz';
+export type Phase = 'lobby' | 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'reveal' | 'final' | 'gone';
+export type Mode = 'classic' | 'blitz' | 'forger' | 'duel';
+export type Spice = 'blind' | 'oneline' | 'ink' | 'three' | 'mirror' | 'shaky';
+export type SpiceChoice = 'off' | 'random' | Spice;
 export type WordMode = 'normal' | 'hidden' | 'combo';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type DifficultyChoice = 'mixed' | Difficulty;
-export type Pack = 'everyday' | 'animals' | 'food' | 'places' | 'jobs' | 'office' | 'sports' | 'nature' | 'things';
+export type Pack = 'everyday' | 'animals' | 'food' | 'places' | 'jobs' | 'office' | 'sports' | 'nature' | 'things' | 'travel' | 'hobbies' | 'fantasy';
 export type WordLang = 'de' | 'en';
 
 export interface Settings {
@@ -27,6 +29,13 @@ export interface Settings {
   customCount: number;
   onlyCustom: boolean;
   nearMiss: boolean;
+  /** Würze: off, random each turn, or one for every turn. */
+  spice: SpiceChoice;
+  /** Team duel: how many teams. */
+  teams: number;
+  /** Fälscher: laps round the table, and seconds per stroke. */
+  laps: number;
+  strokeSeconds: number;
 }
 
 export interface Player {
@@ -36,17 +45,30 @@ export interface Player {
   score: number;
   online: boolean;
   bot: boolean;
-  /** Has the word this turn. */
+  /** Team duel: their team's index; null otherwise. */
+  team: number | null;
+  /** Has the word this turn (Fälscher: has voted). */
   guessed: boolean;
   /** This turn's points, once it's over. */
   points: number | null;
 }
 
+export interface TeamTurn {
+  team: number;
+  drawer: string;
+  done: boolean;
+  order: number | null;
+  at: number | null;
+  points: number | null;
+}
+
 export interface Turn {
+  kind: 'classic' | 'duel' | 'forger';
   n: number;
   round: number;
-  drawer: string;
-  phase: 'choose' | 'draw' | 'reveal';
+  /** classic: the drawer; null in a duel (each team has one) and in Fälscher. */
+  drawer: string | null;
+  phase: 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'reveal';
   /** choose */
   endsAt: number;
   choices?: { word: string; difficulty: Difficulty }[] | null;
@@ -64,8 +86,29 @@ export interface Turn {
   like?: number;
   likes?: number;
   dislikes?: number;
-  ended?: 'time' | 'all' | 'skip' | 'drawer-gone' | null;
+  ended?: 'time' | 'all' | 'skip' | 'drawer-gone' | 'escaped' | 'caught' | 'guessed' | 'forger-gone' | null;
   revealEndsAt?: number | null;
+  spice?: Spice | null;
+  /** Würze "three colours": the three palette indices. */
+  palette?: number[] | null;
+  /** Team duel */
+  myTeam?: number | null;
+  teams?: TeamTurn[] | null;
+  /** Fälscher */
+  category?: string;
+  forgerMe?: boolean;
+  forger?: string | null;
+  order?: string[];
+  laps?: number;
+  step?: number;
+  colors?: Record<string, number>;
+  stroke?: { player: string; endsAt: number; started: boolean } | null;
+  voted?: string[] | null;
+  myVote?: string | null;
+  tally?: Record<string, number> | null;
+  caught?: boolean | null;
+  forgerGuess?: string | null;
+  forgerRight?: boolean | null;
 }
 
 export interface Awards {
@@ -73,6 +116,7 @@ export interface Awards {
   fastest?: { player: string; ms: number; word: string };
   close?: { player: string; count: number };
   unsolved?: { n: number; drawer: string; word: string };
+  forger?: { player: string; count: number };
 }
 
 export interface DrawingInfo {
@@ -85,6 +129,8 @@ export interface DrawingInfo {
   dislikes: number;
   guessed: number;
   possible: number;
+  kind: 'classic' | 'duel' | 'forger';
+  team: number | null;
 }
 
 export interface View {
@@ -96,7 +142,9 @@ export interface View {
   settings: Settings;
   notice: string | null;
   players: Player[];
-  game: { mode: Mode; rounds: number; round: number } | null;
+  game: { mode: Mode; rounds: number; round: number; teams: number } | null;
+  /** Team duel: each team's total. */
+  teams: number[] | null;
   turn: Turn | null;
   final: { awards: Awards | null; drawings: DrawingInfo[] } | null;
   reactions: string[];
@@ -105,7 +153,7 @@ export interface View {
 
 export interface ChatLine {
   id: number;
-  kind: 'msg' | 'guessed' | 'close' | 'half' | 'join' | 'leave' | 'word' | 'skip' | 'host';
+  kind: 'msg' | 'guessed' | 'team' | 'close' | 'half' | 'join' | 'leave' | 'word' | 'skip' | 'host';
   player: string;
   text: string;
   /** Only some saw it: those who know the word, or only you. */
@@ -132,6 +180,10 @@ export interface Config {
   counts: Record<WordLang, number>;
   custom: { words: number; length: number; text: number; min: number };
   reactions: string[];
+  spices: SpiceChoice[];
+  teams: number[];
+  laps: number[];
+  strokeSeconds: number[];
 }
 
 /** A refusal from the server ("no-room", "spoiler" …) or a network failure ("offline"). */
@@ -170,7 +222,8 @@ export const api = {
   info: (code: string) => request<{ code: string; phase: Phase; players: number; full: boolean }>(`/api/rooms/${code}`),
   join: (code: string, name: string, avatar: Avatar | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, avatar, token })),
   act: (seat: Seat, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
-  gallery: (code: string) => request<{ drawings: { n: number; drawer: string; word: string; ops: Op[] }[] }>(`/api/rooms/${code}/gallery`),
+  gallery: (code: string) =>
+    request<{ drawings: { n: number; drawer: string; word: string; kind: 'classic' | 'duel' | 'forger'; team: number | null; ops: Op[] }[] }>(`/api/rooms/${code}/gallery`),
 };
 
 /** Room codes: four consonants (server/game.mjs → CODE). */

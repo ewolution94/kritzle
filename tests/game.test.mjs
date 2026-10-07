@@ -157,7 +157,7 @@ test('ink: only the drawer draws; everyone else gets it; a late page gets the wh
   games.act(r.code, drawer.token, 'ink', { turn: n - 1, ops: [['s', 9, 0, 0, 1, 1, 0]] });
   assert.equal(pageOf(r, guesser).ink.length, 2);
   const late = watch(games, r.code, null);
-  assert.deepEqual(late.canvas.at(-1), { turn: n, ops: [['s', 1, 2, 1, 10, 10, 0], ['p', 1, 20, 20, 16], ['f', 5, [10, 20, FILL_W * FILL_H - 30], 40]] });
+  assert.deepEqual(late.canvas.at(-1), { turn: n, team: null, ops: [['s', 1, 2, 1, 10, 10, 0], ['p', 1, 20, 20, 16], ['f', 5, [10, 20, FILL_W * FILL_H - 30], 40]] });
 });
 
 test('a whole game with bots: every player draws each round, then the podium and the gallery', () => {

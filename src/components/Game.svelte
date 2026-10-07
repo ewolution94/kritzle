@@ -5,6 +5,7 @@
   import { t } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
   import Final from './Final.svelte';
+  import Forger from './Forger.svelte';
   import Lobby from './Lobby.svelte';
   import Turn from './Turn.svelte';
 
@@ -44,6 +45,8 @@
   <button class="btn quiet leave" type="button" onclick={leave}>{t('leaveGame')}</button>
 {:else if view.phase === 'final'}
   <Final {room} {view} onleave={leave} />
+{:else if view.turn?.kind === 'forger'}
+  <Forger {room} {view} />
 {:else if view.turn}
   <Turn {room} {view} />
 {/if}

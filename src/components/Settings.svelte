@@ -9,6 +9,17 @@
 
   let { open, onclose }: { open: boolean; onclose: () => void } = $props();
 
+  // The content stays until the sheet's exit animation is over (its close event), or the sheet
+  // slides out as a header-only box.
+  let shown = $state(false);
+  $effect(() => {
+    if (open) shown = true;
+  });
+  function closed() {
+    shown = false;
+    onclose();
+  }
+
   /**
    * The picked control updates at once; the page changes under themeShift's veil when it really
    * changes, and at once when it doesn't (System while the system already shows that language).
@@ -21,9 +32,9 @@
   }
 </script>
 
-<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={onclose}>
+<ewo-sheet {open} label={t('settings')} oncancel={onclose} onclose={closed}>
   <span slot="heading">{t('settings')}</span>
-  {#if open}
+  {#if shown}
     <section>
       <h3 class="label">{t('general')}</h3>
       <div class="row">

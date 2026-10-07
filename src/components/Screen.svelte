@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { num, t } from '../lib/i18n.svelte';
+  import { num, t, type Key } from '../lib/i18n.svelte';
   import { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
   import Canvas from './Canvas.svelte';
@@ -23,6 +23,8 @@
   const link = $derived(`${location.origin}/${code}`);
   const turn = $derived(view?.turn ?? null);
   const drawer = $derived(view?.players.find((p) => p.id === turn?.drawer));
+  const names = $derived(new Map((view?.players ?? []).map((p) => [p.id, p.name])));
+  const teamName = (team: number) => t(`team_${team}` as Key);
   const ranked = $derived(view ? [...view.players].sort((a, b) => b.score - a.score) : []);
 
   onMount(() => {
@@ -83,6 +85,46 @@
           </li>
         {/each}
       </ol>
+    </div>
+  {:else if turn && turn.kind === 'forger'}
+    <div class="turn">
+      <aside><Players {view} /></aside>
+      <div class="middle">
+        <header>
+          <span class="label">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })} · {t('theme', { name: t(`pack_${turn.category}` as Key) })}</span>
+          <span class="display what">
+            {#if turn.phase === 'forge'}{t('waitStroke', { name: names.get(turn.stroke?.player ?? '') ?? '' })}
+            {:else if turn.phase === 'vote'}{t('voteHint')}
+            {:else if turn.phase === 'unmask'}{t('unmaskWait', { name: names.get(Object.entries(turn.tally ?? {}).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '') ?? '' })}
+            {:else}<span class="hl">{turn.word}</span> · {t('forgerWas', { name: names.get(turn.forger ?? '') ?? '' })}{/if}
+          </span>
+          {#if turn.phase === 'forge' && turn.stroke}{#key turn.step}<Clock {room} from={turn.stroke.endsAt - view.settings.strokeSeconds * 1000} to={turn.stroke.endsAt} />{/key}{/if}
+        </header>
+        <div class="sheet"><Canvas {room} {turn} /></div>
+      </div>
+      <aside class="talk"><Chat {room} {view} /></aside>
+    </div>
+  {:else if turn && turn.kind === 'duel' && turn.teams}
+    <div class="turn duel">
+      <div class="middle wide">
+        <header>
+          <span class="label">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}</span>
+          <span class="display what pattern">{turn.phase === 'reveal' ? turn.word : turn.pattern ? turn.pattern.split('').join(' ') : t('hiddenWord')}</span>
+          {#if turn.phase === 'draw' && turn.startsAt}<Clock {room} from={turn.startsAt} to={turn.endsAt} />{/if}
+        </header>
+        <div class="grid" style:--n={turn.teams.length} style:--rows={Math.ceil(turn.teams.length / 2)}>
+          {#each turn.teams as x (x.team)}
+            <figure>
+              <Canvas {room} {turn} team={x.team} />
+              <figcaption>
+                <span class="team-tag t{x.team}">{teamName(x.team)}</span>
+                {names.get(x.drawer) ?? ''}{x.done ? ' ✓' : ''}
+                <span class="score">{num(view.teams?.[x.team] ?? 0)}</span>
+              </figcaption>
+            </figure>
+          {/each}
+        </div>
+      </div>
     </div>
   {:else if turn}
     <div class="turn">
@@ -206,6 +248,42 @@
     color: var(--mute);
     font-size: 2vh;
   }
+  .duel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(min(var(--n), 2), minmax(0, 1fr));
+    gap: 2vh 2vw;
+    min-height: 0;
+  }
+  .grid figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8vh;
+    width: min(100%, calc((100dvh - 30vh) / var(--rows, 1) * 4 / 3));
+  }
+  .grid figcaption {
+    display: flex;
+    align-items: center;
+    gap: 1vw;
+    font: 600 2vh/1.2 var(--ewo-sans);
+  }
+  .grid .score {
+    margin-left: auto;
+    font-family: var(--ewo-mono);
+  }
+  .team-tag {
+    padding: 0.2vh 0.6vw;
+    border-radius: 6px;
+    color: #ffffff;
+    font-weight: 700;
+  }
+  .t0 { background: #c9341f; }
+  .t1 { background: #2d5bd8; }
+  .t2 { background: #8a6d00; }
+  .t3 { background: #1f7a45; }
   .end {
     display: flex;
     flex-direction: column;
