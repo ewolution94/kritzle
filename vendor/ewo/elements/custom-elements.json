@@ -336,6 +336,10 @@
             {
               "description": "The tag's outline (default a dark ink, on any page).",
               "name": "--ewo-emblem-tag-ink"
+            },
+            {
+              "description": "The tag's first colour (mint); -1 … -9 the others, in TAG_COLOURS' order.",
+              "name": "--ewo-emblem-tag-0"
             }
           ],
           "members": [

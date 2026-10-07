@@ -47,6 +47,47 @@ var t = "M34 14H84a8 8 0 0 1 8 8V78a8 8 0 0 1-8 8H34L11 54Q8 50 11 46Z", n = [
 	}, "M32 20A11 11 0 1 1 32 42A11 11 0 1 1 32 20ZM68 58A11 11 0 1 1 68 80A11 11 0 1 1 68 58ZM70 16L80 24L30 84L20 76Z"]
 ], r = [
 	[{
+		de: "Mint",
+		en: "Mint"
+	}, "#64c8b9"],
+	[{
+		de: "Lila",
+		en: "Purple"
+	}, "#b198db"],
+	[{
+		de: "Orange",
+		en: "Orange"
+	}, "#f8a171"],
+	[{
+		de: "Blau",
+		en: "Blue"
+	}, "#6ea0eb"],
+	[{
+		de: "Rosa",
+		en: "Pink"
+	}, "#e89fdd"],
+	[{
+		de: "Grün",
+		en: "Green"
+	}, "#a9e034"],
+	[{
+		de: "Gelb",
+		en: "Yellow"
+	}, "#f5d547"],
+	[{
+		de: "Beige",
+		en: "Beige"
+	}, "#d8bda4"],
+	[{
+		de: "Petrol",
+		en: "Teal"
+	}, "#099f91"],
+	[{
+		de: "Pflaume",
+		en: "Plum"
+	}, "#9c7fcb"]
+], i = [
+	[{
 		de: "Schlicht",
 		en: "Plain"
 	}, ""],
@@ -86,38 +127,52 @@ var t = "M34 14H84a8 8 0 0 1 8 8V78a8 8 0 0 1-8 8H34L11 54Q8 50 11 46Z", n = [
 		de: "Sparren",
 		en: "Chevron"
 	}, "<path class=\"tp\" d=\"M0 76L62 46L100 64V100H0Z\"/>"]
-], i = [
+], a = [
 	{
 		de: "Anfangsbuchstabe",
 		en: "Initial"
 	},
 	...n.map(([e]) => e),
 	...e.map(([e]) => e)
-], a = "translate(62 50) scale(0.54) translate(-50 -50)", o = (e) => e.replace(/[&<>"]/g, (e) => `&#${e.charCodeAt(0)};`), s = {
+], o = "translate(62 50) scale(0.54) translate(-50 -50)", s = (e) => e.replace(/[&<>"]/g, (e) => `&#${e.charCodeAt(0)};`), c = {
 	id: "tag",
-	parts: [{
-		name: {
-			de: "Muster",
-			en: "Pattern"
+	parts: [
+		{
+			name: {
+				de: "Farbe",
+				en: "Colour"
+			},
+			options: r.map(([e]) => e)
 		},
-		options: r.map(([e]) => e)
-	}, {
-		name: {
-			de: "Figur",
-			en: "Figure"
+		{
+			name: {
+				de: "Muster",
+				en: "Pattern"
+			},
+			options: i.map(([e]) => e)
 		},
-		options: i
-	}],
-	svg([i, s], { uid: c = "e", dead: l = !1, initial: u = "" } = {}) {
-		let d;
-		if (!s) d = `<text class="ti" x="62" y="51" text-anchor="middle" dominant-baseline="central">${o([...new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(u.trim())][0]?.segment.toUpperCase() ?? "?")}</text>`;
-		else if (s <= n.length) {
-			let [, e, t] = n[s - 1];
-			d = `<g transform="${a}"><path class="tf" d="${e}"/>${t ? `<path class="tl" d="${t}"/>` : ""}</g>`;
-		} else d = `<path class="tf" d="${e[s - 1 - n.length]?.[1] ?? e[0][1]}" transform="${a}"/>`;
-		return `<svg viewBox="0 0 100 100" class="tag" aria-hidden="true"><g${l ? " class=\"faded\"" : ""} transform="rotate(-12 50 50) translate(50 50) scale(0.92) translate(-50 -50)"><defs><clipPath id="g${c}"><path d="${t}"/></clipPath></defs><g clip-path="url(#g${c})"><rect class="e1" width="100" height="100"/>${(r[i] ?? r[0])[1]}</g><path class="trim" d="${t}"/><circle class="thole" cx="24" cy="50" r="5.5"/>${d}</g>${l ? "<path d=\"M20 18L80 82M80 18L20 82\" class=\"strike\"/>" : ""}</svg>`;
+		{
+			name: {
+				de: "Figur",
+				en: "Figure"
+			},
+			options: a
+		}
+	],
+	svg([r, a, c], { uid: l = "e", dead: u = !1, initial: d = "" } = {}) {
+		let f;
+		if (!c) f = `<text class="ti" x="62" y="51" text-anchor="middle" dominant-baseline="central">${s([...new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(d.trim())][0]?.segment.toUpperCase() ?? "?")}</text>`;
+		else if (c <= n.length) {
+			let [, e, t] = n[c - 1];
+			f = `<g transform="${o}"><path class="tf" d="${e}"/>${t ? `<path class="tl" d="${t}"/>` : ""}</g>`;
+		} else f = `<path class="tf" d="${e[c - 1 - n.length]?.[1] ?? e[0][1]}" transform="${o}"/>`;
+		return `<svg viewBox="0 0 100 100" class="tag" aria-hidden="true"><g class="tc${r}${u ? " faded" : ""}" transform="rotate(-12 50 50) translate(50 50) scale(0.92) translate(-50 -50)"><defs><clipPath id="g${l}"><path d="${t}"/></clipPath></defs><g clip-path="url(#g${l})"><rect class="e1" width="100" height="100"/>${(i[a] ?? i[0])[1]}</g><path class="trim" d="${t}"/><circle class="thole" cx="24" cy="50" r="5.5"/>${f}</g>${u ? "<path d=\"M20 18L80 82M80 18L20 82\" class=\"strike\"/>" : ""}</svg>`;
 	},
-	fromSeed: (e) => [(e >>> 7) % 8, 1 + n.length + e % 16]
+	fromSeed: (e) => [
+		(e >>> 4) % r.length,
+		(e >>> 7) % 8,
+		1 + n.length + e % 16
+	]
 };
 //#endregion
-export { s as tag };
+export { r as TAG_COLOURS, c as tag };

@@ -16,10 +16,14 @@ var f = {
 		next: "{part}: next"
 	}
 }, p = t`
+  /* The strip naming a change sits on the stage's top edge and rises above it. Its room is the
+     maker's own padding, so a scrolling parent can't clip it: inside an ewo-sheet the body's
+     overflow cut it off under the header (2026-10-08). */
   :host {
     display: grid;
     justify-items: center;
     gap: var(--ewo-space-3);
+    padding-top: 20px;
     --_stage: var(--ewo-emblem-maker-size, 200px);
   }
   .maker {
