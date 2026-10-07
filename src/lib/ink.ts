@@ -174,6 +174,13 @@ export function duration(actions: Action[]) {
   return end;
 }
 
+/** When the first ink went down, in ms: a timelapse starts there, not at the turn's start. */
+export function firstInk(actions: Action[]) {
+  let first = Infinity;
+  for (const a of actions) first = Math.min(first, a.k === 's' ? a.pts[2] : a.t);
+  return first === Infinity ? 0 : first;
+}
+
 /** A drawing on a new canvas of the given width (thumbnails, PNG downloads). */
 export function render(actions: Action[], width: number, until = Infinity) {
   const canvas = document.createElement('canvas');

@@ -5,7 +5,9 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { api, type ChainEntry } from '../lib/api';
   import { num, t, type Key } from '../lib/i18n.svelte';
+  import Picture from './Picture.svelte';
   import { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
   import Canvas from './Canvas.svelte';
@@ -25,7 +27,19 @@
   const drawer = $derived(view?.players.find((p) => p.id === turn?.drawer));
   const names = $derived(new Map((view?.players ?? []).map((p) => [p.id, p.name])));
   const teamName = (team: number) => t(`team_${team}` as Key);
+  let chains: { owner: string; entries: ChainEntry[] }[] | null = $state(null);
+  $effect(() => {
+    if (turn?.kind === 'telephone' && turn.phase === 'showcase' && !chains) api.chains(code).then((c) => (chains = c.chains), () => {});
+  });
+  function upTo(all: { owner: string; entries: ChainEntry[] }[] | null, show: { chain: number; entry: number } | null | undefined) {
+    if (!all || !show) return [];
+    return all[show.chain]?.entries.slice(Math.max(0, show.entry - 2), show.entry + 1) ?? [];
+  }
   const ranked = $derived(view ? [...view.players].sort((a, b) => b.score - a.score) : []);
+  const tie = $derived(ranked.length > 1 && ranked[0].score === ranked[1].score);
+  const telephone = $derived(view?.game?.mode === 'telephone');
+  const teamScores = $derived(view?.teams ? view.teams.map((score, team) => ({ team, score })).sort((a, b) => b.score - a.score) : null);
+  const teamTie = $derived(Boolean(teamScores && teamScores.length > 1 && teamScores[0].score === teamScores[1].score));
 
   onMount(() => {
     room.connect();
@@ -74,17 +88,61 @@
     </div>
   {:else if view.phase === 'final'}
     <div class="end">
-      <h2 class="display big"><span class="hl">{t('winner', { name: ranked[0]?.name ?? '' })}</span></h2>
-      <ol>
-        {#each ranked.slice(0, 8) as p, i (p.id)}
-          <li class:first={i === 0}>
-            <span class="rank">{i + 1}.</span>
-            <Avatar avatar={p.avatar} size={i === 0 ? 72 : 48} crown={i === 0} />
-            <span class="name">{p.name}</span>
-            <span class="score">{num(p.score)}</span>
-          </li>
-        {/each}
-      </ol>
+      {#if telephone}
+        <h2 class="display big"><span class="hl">{t('telephoneEnd')}</span></h2>
+        <ul class="crowd">
+          {#each view.players as p (p.id)}
+            <li><Avatar avatar={p.avatar} size={72} /><span>{p.name}</span></li>
+          {/each}
+        </ul>
+      {:else if teamScores}
+        <h2 class="display big"><span class="hl">{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}</span></h2>
+        <ol>
+          {#each teamScores as x, i (x.team)}
+            <li class:first={i === 0}>
+              <span class="rank">{i + 1}.</span>
+              <span class="team-tag t{x.team}">{teamName(x.team)}</span>
+              <span class="name">{view.players.filter((p) => p.team === x.team).map((p) => p.name).join(', ')}</span>
+              <span class="score">{num(x.score)}</span>
+            </li>
+          {/each}
+        </ol>
+      {:else}
+        <h2 class="display big"><span class="hl">{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}</span></h2>
+        <ol>
+          {#each ranked.slice(0, 8) as p, i (p.id)}
+            <li class:first={i === 0}>
+              <span class="rank">{i + 1}.</span>
+              <Avatar avatar={p.avatar} size={i === 0 ? 72 : 48} crown={i === 0 && !tie} />
+              <span class="name">{p.name}</span>
+              <span class="score">{num(p.score)}</span>
+            </li>
+          {/each}
+        </ol>
+      {/if}
+    </div>
+  {:else if turn && turn.kind === 'telephone'}
+    <div class="phone-game">
+      <header>
+        <span class="label">{t('mode_telephone')}</span>
+        <span class="display what">
+          {#if turn.phase === 'showcase'}{t('chainOf', { name: names.get(turn.show?.owner ?? '') ?? '' })}
+          {:else}{t('stepOf', { n: (turn.step ?? 0) + 1, total: turn.steps ?? 1 })} · {t('waitOthers', { n: turn.done?.length ?? 0, total: view.players.length })}{/if}
+        </span>
+        {#if turn.phase === 'tell' && turn.startsAt}{#key turn.step}<Clock {room} from={turn.startsAt} to={turn.endsAt} />{/key}{/if}
+      </header>
+      {#if turn.phase === 'showcase'}
+        <ol class="chain">
+          {#each upTo(chains, turn.show) as e, i (i)}
+            <li>
+              <span class="by">{names.get(e.player) ?? ''}</span>
+              {#if e.kind === 'text'}<p class="said display">„{e.text}“</p>{:else}<div class="pic"><Picture ops={e.ops ?? []} /></div>{/if}
+            </li>
+          {/each}
+        </ol>
+      {:else}
+        <Players {view} />
+      {/if}
     </div>
   {:else if turn && turn.kind === 'forger'}
     <div class="turn">
@@ -248,6 +306,39 @@
     color: var(--mute);
     font-size: 2vh;
   }
+  .phone-game {
+    display: flex;
+    flex-direction: column;
+    gap: 3vh;
+    height: 100%;
+  }
+  .chain {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2vw;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .chain li {
+    flex: 0 1 calc((100% - 4vw) / 3);
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+    min-width: 0;
+  }
+  .by {
+    font: 600 2vh/1.2 var(--ewo-sans);
+  }
+  .said {
+    margin: 0;
+    padding: 2vh 1.4vw;
+    border: 2px solid var(--ink);
+    border-radius: 16px 16px 16px 4px;
+    background: var(--card);
+    font-size: 4vh;
+  }
   .duel {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -320,5 +411,21 @@
   .rank {
     width: 3vw;
     color: var(--mute);
+  }
+  .crowd {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3vh 3vw;
+    margin: 2vh 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .crowd li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1vh;
+    font: 600 2.4vh/1.2 var(--ewo-sans);
   }
 </style>

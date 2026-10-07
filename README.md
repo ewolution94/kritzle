@@ -33,9 +33,10 @@ afternoon meeting, mostly played on a video call. Live at
   page that arrives late gets the whole drawing at once.
 - **Reactions and likes:** six emoji float up over everyone's canvas; a like or dislike per drawing
   feeds the end's awards.
-- **The end:** the podium, awards (most liked, fastest guess, so close, the word nobody got), and the
-  gallery: every drawing of the game replays as a timelapse and downloads as a PNG, or the whole game
-  as one image. Drawings live only in the server's memory: the downloads are the only copies.
+- **The end:** the podium, awards (most liked, fastest guess, so close, the word nobody got, the
+  forger), and the gallery: every drawing of the game replays as a timelapse from its first line and
+  downloads as a PNG or as a looping GIF of the timelapse (made in the browser), or the whole game as
+  one image. Drawings live only in the server's memory: the downloads are the only copies.
 - **Fälscher (Forger):** everyone sees the word except the forger, who only gets its theme. In
   turns, each player adds one stroke in their own colour to one shared drawing, once or more round
   the table; then everyone points at the forger. A tie lets the forger escape; caught, the forger
@@ -45,13 +46,18 @@ afternoon meeting, mostly played on a video call. Live at
   moment on the team's own canvas, and only the team sees it and its guesses. The first team to get
   it scores most (the same formula, by team); the guesser and the drawer share the team's points. At
   the end of a turn everyone sees every team's drawing, and the big screen shows them side by side.
+- **Stille Post (Telephone):** everyone writes a sentence, then the sheets travel: draw the sentence
+  you got, describe the drawing you got (without seeing what came before), and so on, up to eight
+  steps, all at the same time. Then the host leafs through every chain on everyone's screen, step by
+  step, from the first sentence to the last guess. No points; the drawings go to the gallery under
+  the sentence they were drawn from.
 - **Würze (spice)** for Classic, Blitz and Team duel, one for every turn or a random one each turn:
   Blind (your strokes vanish for you when the pen lifts), Ein Strich (one stroke), Wenig Tinte (an
   ink bar that empties), Drei Farben (three random colours), Spiegel (a mirror image follows each
   stroke) and Zitterhand (a shaky hand). The server holds the drawer to one stroke, the ink and the
   colours.
 - **Modes and settings** (the host, in the lobby): Classic, Blitz (two rounds of 45 seconds, one
-  word to choose, hints sooner), Fälscher or Team duel; 2 to 10 rounds, 30 to 240 seconds, words to choose from, 0 to 5
+  word to choose, hints sooner), Fälscher, Team duel or Stille Post; 2 to 10 rounds, 30 to 240 seconds, words to choose from, 0 to 5
   hints; normal, hidden (no blanks until the first hint) or combination words (two at once, both to
   guess); the words' language (German or English), difficulty and themes (Alltag, Tiere, Essen,
   Orte, Berufe, Büro, Sport, Natur, Dinge, Reisen, Hobbys, Fantasie); your own words, optionally only those (the others only
@@ -59,7 +65,11 @@ afternoon meeting, mostly played on a video call. Live at
   at once.
 - **The big screen** (`/KXPT/screen`): the game for a projector or the screen shared in a call,
   without a seat or controls: the code and QR code in the lobby, the canvas, the blanks and the
-  clock during a turn, the standings at the end. It never knows the word before everyone does.
+  clock during a turn (every team's canvas side by side in a duel, the chain in a row in Stille
+  Post), the standings at the end. It never knows the word before everyone does.
+- **Sounds,** made in the browser (Web Audio, no files): a right guess, yours, the start, your turn
+  to draw, the last seconds ticking, the reveal, the fanfare at the end. A switch in the settings,
+  remembered on the device; browsers play sound only after a first tap.
 - **The look:** a sketchbook. Graph paper, graphite, a lime highlighter and washi tape, hand-drawn
   box edges, Caveat Brush and Geist; light only. The logo redraws itself a few times a second, like
   a hand-drawn cartoon (still during a turn, and under reduced motion).
@@ -102,7 +112,8 @@ npm run build && npm start   # production server on :8080 (or --port 6111)
 This mirrors Schätzle and Vollmond:
 
 - `ci.yml` runs the typecheck, the tests and the build, then smoke-tests the production server
-  (page, headers, a room, a second player, a bot, a started game on the live stream).
+  (page, headers, a room, a second player, a bot, a started game on the live stream; Fälscher, Team
+  duel and Stille Post each start).
 - `docker-publish.yml` gates on `ci.yml`, then pushes `ghcr.io/ewolution94/kritzle:latest` for amd64
   and arm64.
 - The shared Watchtower picks the image up. A push to `release` is the whole deploy, and it ends any
@@ -131,8 +142,11 @@ server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves, the drawer's ink batches
 src/lib/ink.ts            painting the drawing, the drawer's fill, playback on the drawer's timing
 src/lib/avatar.ts         the avatar parts and the face drawn from five numbers
+src/lib/sound.svelte.ts   the sounds, synthesised with Web Audio
+src/lib/gif.ts            a drawing's timelapse as an animated GIF (LZW, no dependencies)
 src/components/           Home, Join, AvatarMaker, Game → Lobby, Turn (Canvas, Dock, Chat,
-                          Players, Clock), Final; Screen (the big screen)
+                          Players, Clock), Forger, Telephone (Picture), Final; Screen (the big
+                          screen)
 public/                   the icon, the offline worker, the iOS launch images (splash/)
 brand/                    the app icon (development/plans/app-icons, the Field set)
 ```

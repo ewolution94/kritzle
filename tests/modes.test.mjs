@@ -221,3 +221,61 @@ test('Team duel: a whole game to the end, one gallery drawing per team and turn'
   assert.equal(r.pages[0].view.final.drawings.length, 8);
   assert.ok(r.pages[0].view.final.drawings.every((d) => d.kind === 'duel' && d.team !== null));
 });
+
+test('Stille Post: write, draw, describe; every chain passes everyone; nobody sees a drawing until the end', () => {
+  const { games, clock } = setup();
+  const r = room(games, 2);
+  games.act(r.code, r.host.token, 'settings', { mode: 'telephone' });
+  games.act(r.code, r.host.token, 'start');
+  const v = r.pages[0].view;
+  assert.equal(v.phase, 'tell');
+  assert.equal(v.turn.stepKind, 'write');
+  assert.equal(v.turn.steps, 3);
+  // Step 0: everyone writes a phrase.
+  r.seats.forEach((s, i) => games.act(r.code, s.token, 'tell', { text: `Satz ${i}` }));
+  clock.advance(700);
+  assert.equal(r.pages[0].view.turn.stepKind, 'draw');
+  // Each draws someone else's phrase, in private.
+  const prompts = r.pages.map((p) => p.view.turn.prompt);
+  assert.equal(new Set(prompts).size, 3);
+  r.pages.forEach((p, i) => assert.notEqual(p.view.turn.prompt, `Satz ${i}`, 'never your own phrase'));
+  const n = r.pages[0].view.turn.n;
+  r.seats.forEach((s, i) => games.act(r.code, s.token, 'ink', { turn: n, ops: [['s', 1, i, 1, 10 * (i + 1), 10, 0]] }));
+  for (const page of r.pages) assert.equal(page.ink.length, 0, 'drawings stay private');
+  r.seats.forEach((s) => games.act(r.code, s.token, 'done'));
+  clock.advance(700);
+  assert.equal(r.pages[0].view.turn.stepKind, 'describe');
+  assert.equal(r.pages[0].view.turn.promptDrawing, true);
+  // The drawing to describe is the one drawn from this chain's phrase.
+  const prompt = games.prompt(r.code, r.seats[0].token);
+  assert.equal(prompt.ops.length, 1);
+  assert.throws(() => games.act(r.code, r.seats[0].token, 'done'), (e) => e.code === 'wrong-phase');
+  r.seats.forEach((s, i) => games.act(r.code, s.token, 'tell', { text: `Bild ${i}` }));
+  clock.advance(700);
+  // Three steps for three players: the showcase.
+  assert.equal(r.pages[0].view.phase, 'showcase');
+  const chains = games.chains(r.code);
+  assert.equal(chains.length, 3);
+  for (const c of chains) assert.deepEqual(c.entries.map((e) => e.kind), ['text', 'drawing', 'text']);
+  // The host steps through every entry of every chain, then the game ends.
+  assert.throws(() => games.act(r.code, r.seats[1].token, 'next'), (e) => e.code === 'not-host');
+  for (let i = 0; i < 9; i++) games.act(r.code, r.host.token, 'next');
+  assert.equal(r.pages[0].view.phase, 'final');
+  const gallery = games.gallery(r.code);
+  assert.equal(gallery.length, 3);
+  assert.ok(gallery.every((g) => g.kind === 'telephone' && g.word.startsWith('Satz')));
+});
+
+test('Stille Post: needs three; a missing phrase or drawing gets a stand-in when time runs out', () => {
+  const { games, clock } = setup();
+  const two = room(games, 1);
+  games.act(two.code, two.host.token, 'settings', { mode: 'telephone' });
+  assert.throws(() => games.act(two.code, two.host.token, 'start'), (e) => e.code === 'too-few-three');
+
+  const r = room(games, 2);
+  games.act(r.code, r.host.token, 'settings', { mode: 'telephone' });
+  games.act(r.code, r.host.token, 'start');
+  clock.advance(46_000);
+  assert.equal(r.pages[0].view.turn.stepKind, 'draw');
+  assert.ok(r.pages.every((p) => p.view.turn.prompt), 'a suggested word stands in for a missing phrase');
+});

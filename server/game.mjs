@@ -12,6 +12,9 @@
 //   forger          Fälscher: everyone but the forger knows the word; in turns each adds one stroke
 //                   to one shared drawing; then everyone points at the forger, who, caught, may still
 //                   name the word. Phases forge → vote → (unmask) → reveal.
+//   telephone       Stille Post: everyone writes a phrase, draws the phrase they're handed,
+//                   describes the drawing they're handed, and so on, all at once on a clock; then the
+//                   host steps through every chain while everyone watches. Phases tell → showcase.
 // Würze (settings.spice) changes how a classic or duel turn is drawn: one stroke, little ink, three
 // colours, blind, mirrored, shaky. Some of it the server enforces (spiceFilter), the rest is the
 // drawer's page.
@@ -31,7 +34,7 @@ import { CUSTOM_LIMITS, LANGS, PACKS, choices as drawChoices, parseCustom, pool 
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
 export const CODE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
-export const MODES = ['classic', 'blitz', 'forger', 'duel'];
+export const MODES = ['classic', 'blitz', 'forger', 'duel', 'telephone'];
 export const ROUND_CHOICES = [2, 3, 4, 5, 6, 8, 10];
 export const SECOND_CHOICES = [30, 45, 60, 80, 100, 120, 180, 240];
 export const WORD_CHOICES = [1, 2, 3, 4, 5];
@@ -54,6 +57,7 @@ const PRESETS = {
   blitz: { rounds: 2, seconds: 45, words: 1, hints: 3 },
   forger: { rounds: 3, laps: 2, strokeSeconds: 15 },
   duel: { rounds: 2, seconds: 80, hints: 2 },
+  telephone: { seconds: 80 },
 };
 
 export const DEFAULT_SETTINGS = Object.freeze({
@@ -110,6 +114,10 @@ const FORGER_REVEAL_MS = 8_000;
 export const FORGER_POINTS = Object.freeze({ escaped: 800, guessed: 500, artists: 300, vote: 100 });
 /** A stroke player gone this long is skipped. */
 const STROKE_GRACE = 5_000;
+/** Stille Post: seconds to write or describe (drawing takes the draw time), and the longest chain. */
+const TELL_MS = 45_000;
+export const TELEPHONE_MAX_STEPS = 8;
+const TELL_LENGTH = 80;
 
 const BOT_NAMES = ['Robo Rita', 'Bot Bernd', 'Pixel Paula', 'Kritzel-Karl', 'Tinte Tom', 'Skizzen-Sam', 'Krakel-Kim', 'Feder Fritz'];
 const BOT_MISSES = ['hmm', 'Haus?', 'ein Tier?', 'Baum', 'Auto', 'keine Ahnung', 'Sonne?', 'Katze'];
@@ -276,7 +284,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   /** Does this player know the word right now? */
   function knows(t, p) {
-    if (!t || !p) return false;
+    if (!t || !p || t.kind === 'telephone') return false;
     if (t.kind === 'classic') return t.drawer === p.id || t.guessed.has(p.id);
     if (t.kind === 'duel') {
       const team = t.teams.find((x) => x.team === p.team);
@@ -307,7 +315,14 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         online: isOnline(p),
         bot: p.bot,
         team: p.team,
-        guessed: Boolean(t && (t.kind === 'forger' ? t.phase === 'vote' && t.votes.has(p.id) : t.phase !== 'choose' && knows(t, p) && !isDrawer(t, p.id))),
+        guessed: Boolean(
+          t &&
+            (t.kind === 'telephone'
+              ? t.phase === 'tell' && t.done.has(p.id)
+              : t.kind === 'forger'
+                ? t.phase === 'vote' && t.votes.has(p.id)
+                : t.phase !== 'choose' && knows(t, p) && !isDrawer(t, p.id)),
+        ),
         points: t?.phase === 'reveal' ? (t.points.get(p.id) ?? 0) : null,
       })),
       game: r.game ? { mode: r.game.mode, rounds: r.game.rounds, round: r.game.round, teams: r.game.teams ?? 0 } : null,
@@ -334,6 +349,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   function turnView(r, t, me) {
     if (t.kind === 'forger') return forgerView(r, t, me);
+    if (t.kind === 'telephone') return telephoneView(r, t, me);
     const base = { kind: t.kind, n: t.n, round: t.round, drawer: t.drawer ?? null, phase: t.phase };
     if (t.phase === 'choose') {
       return {
@@ -530,6 +546,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   function startGame(r) {
     const people = present(r);
     const mode = r.settings.mode;
+    if (mode === 'telephone' && people.length < 3) throw new GameError('too-few-three', 409);
     if (people.length < (mode === 'forger' ? 3 : 2)) throw new GameError(mode === 'forger' ? 'too-few-forger' : 'too-few', 409);
     const words = pool(r.settings);
     if (r.settings.onlyCustom && words.length < CUSTOM_LIMITS.min) throw new GameError('custom-few', 409);
@@ -566,6 +583,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     r.game.round++;
     if (r.game.round > r.game.rounds) return finish(r);
     if (r.game.mode === 'forger') return forgerRound(r);
+    if (r.game.mode === 'telephone') return r.game.round === 1 ? telephoneStart(r) : finish(r);
     if (r.game.mode === 'duel') {
       r.game.turnInRound = 0;
       return duelTurn(r);
@@ -1069,6 +1087,219 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     touch(r);
   }
 
+
+  // ---- Stille Post --------------------------------------------------------------------------
+
+  /** Step 0 writes; then drawing and describing take turns. */
+  const stepKind = (step) => (step === 0 ? 'write' : step % 2 === 1 ? 'draw' : 'describe');
+
+  function telephoneStart(r) {
+    clearTimers(r);
+    const g = r.game;
+    const order = present(r).map((p) => p.id);
+    g.chains = order.map((owner) => ({ owner, entries: [] }));
+    const t = {
+      kind: 'telephone',
+      n: ++g.n,
+      round: 1,
+      phase: 'tell',
+      order,
+      step: -1,
+      steps: Math.min(order.length, TELEPHONE_MAX_STEPS),
+      stepKind: 'write',
+      startsAt: 0,
+      endsAt: 0,
+      done: new Set(),
+      texts: new Map(),
+      drawings: new Map(),
+      suggestions: new Map(),
+      show: null,
+      points: new Map(),
+      likes: new Map(),
+      ended: null,
+    };
+    r.turn = t;
+    nextStep(r);
+  }
+
+  /** The chain a player works on in a step: never their own until it comes round again. */
+  const chainOf = (t, playerId, step = t.step) => (t.order.indexOf(playerId) + step) % t.order.length;
+
+  function nextStep(r) {
+    const t = r.turn;
+    clearTimers(r);
+    t.step++;
+    if (t.step >= t.steps) return startShowcase(r);
+    if (t.step > 0) t.n = ++r.game.n;
+    t.stepKind = stepKind(t.step);
+    t.done = new Set();
+    t.texts = new Map();
+    t.drawings = new Map();
+    const now = clock.now();
+    const ms = t.stepKind === 'draw' ? r.settings.seconds * 1000 : TELL_MS;
+    t.startsAt = now;
+    t.endsAt = now + ms;
+    r.phase = 'tell';
+    if (t.stepKind === 'write') {
+      for (const id of t.order) {
+        const [e] = drawChoices(r.game.words, 1, r.game.seen, false, randomInt);
+        if (e) t.suggestions.set(id, e.word);
+      }
+    }
+    later(r, ms, () => endStep(r));
+    playTelephoneBots(r, t);
+    touch(r);
+    sendCanvas(r);
+  }
+
+  /** Everyone's part of this step goes into their chain; whatever's missing gets a stand-in. */
+  function endStep(r) {
+    const t = r.turn;
+    if (!t || t.kind !== 'telephone' || t.phase !== 'tell') return;
+    clearTimers(r);
+    for (const id of t.order) {
+      const chain = r.game.chains[chainOf(t, id)];
+      if (t.stepKind === 'draw') chain.entries.push({ player: id, kind: 'drawing', drawing: t.drawings.get(id) ?? newDrawing() });
+      else chain.entries.push({ player: id, kind: 'text', text: t.texts.get(id) ?? (t.stepKind === 'write' ? (t.suggestions.get(id) ?? '…') : '…') });
+    }
+    nextStep(r);
+  }
+
+  function maybeEndStep(r) {
+    const t = r.turn;
+    const waiting = t.order.filter((id) => {
+      const p = r.players.get(id);
+      return p && !p.left && isOnline(p) && !t.done.has(id);
+    });
+    if (!waiting.length && !t.ending) {
+      t.ending = true;
+      later(r, 600, () => {
+        t.ending = false;
+        endStep(r);
+      });
+    }
+  }
+
+  function tell(r, p, raw) {
+    const t = r.turn;
+    if (t.stepKind === 'draw') throw new GameError('wrong-phase', 409);
+    if (!t.order.includes(p.id)) throw new GameError('no-player', 403);
+    const text = cleanText(raw, TELL_LENGTH);
+    if (!text) throw new GameError('empty');
+    t.texts.set(p.id, text);
+    t.done.add(p.id);
+    touch(r);
+    maybeEndStep(r);
+  }
+
+  function startShowcase(r) {
+    const t = r.turn;
+    t.phase = 'showcase';
+    t.show = { chain: 0, entry: 0 };
+    r.phase = 'showcase';
+    // Every drawing joins the gallery, with the words it was drawn from.
+    r.game.chains.forEach((chain, c) =>
+      chain.entries.forEach((e, i) => {
+        if (e.kind !== 'drawing') return;
+        r.gallery.push({
+          kind: 'telephone',
+          n: c * 100 + i,
+          round: 1,
+          drawer: e.player,
+          word: chain.entries[i - 1]?.text ?? '',
+          difficulty: 'medium',
+          drawing: e.drawing,
+          turn: t,
+          likes: 0,
+          dislikes: 0,
+          guessed: null,
+          possible: null,
+          first: null,
+        });
+      }),
+    );
+    touch(r);
+  }
+
+  /** The host steps through the chains, entry by entry; past the last one, the game ends. */
+  function showStep(r, delta) {
+    const t = r.turn;
+    const chains = r.game.chains;
+    let { chain, entry } = t.show;
+    entry += delta;
+    if (entry >= chains[chain].entries.length) {
+      chain++;
+      entry = 0;
+    } else if (entry < 0) {
+      chain = Math.max(0, chain - 1);
+      entry = chain === t.show.chain ? 0 : chains[chain].entries.length - 1;
+    }
+    if (chain >= chains.length) return finish(r);
+    t.show = { chain, entry };
+    touch(r);
+  }
+
+  function telephoneView(r, t, me) {
+    const mine = me && t.order.includes(me.id) ? me.id : null;
+    let prompt = null;
+    if (t.phase === 'tell' && mine && t.stepKind === 'draw') {
+      const prev = r.game.chains[chainOf(t, mine)].entries[t.step - 1];
+      prompt = prev?.text ?? '…';
+    }
+    const show = t.show
+      ? {
+          chain: t.show.chain,
+          entry: t.show.entry,
+          owner: r.game.chains[t.show.chain].owner,
+          chains: r.game.chains.length,
+          length: r.game.chains[t.show.chain].entries.length,
+        }
+      : null;
+    return {
+      kind: 'telephone',
+      n: t.n,
+      round: 1,
+      drawer: null,
+      phase: t.phase,
+      step: t.step,
+      steps: t.steps,
+      stepKind: t.stepKind,
+      startsAt: t.startsAt,
+      endsAt: t.endsAt,
+      done: [...t.done],
+      myDone: mine ? t.done.has(mine) : false,
+      myText: mine ? (t.texts.get(mine) ?? null) : null,
+      prompt,
+      promptDrawing: t.phase === 'tell' && t.stepKind === 'describe' && Boolean(mine),
+      suggestion: t.phase === 'tell' && t.stepKind === 'write' && mine ? (t.suggestions.get(mine) ?? null) : null,
+      show,
+      ...likeCounts(t, me),
+      ended: null,
+    };
+  }
+
+  function playTelephoneBots(r, t) {
+    const ms = t.endsAt - t.startsAt;
+    for (const id of t.order) {
+      const p = r.players.get(id);
+      if (!p?.bot) continue;
+      later(r, Math.min(ms - 1000, 2000 + randomInt(4000)), () => {
+        if (r.turn !== t || t.phase !== 'tell' || t.done.has(id)) return;
+        if (t.stepKind === 'draw') {
+          const d = newDrawing();
+          for (let k = 0; k < 4; k++) applyOps(d, squiggle(t, 3000 + k));
+          t.drawings.set(id, d);
+          t.done.add(id);
+          touch(r);
+          maybeEndStep(r);
+        } else {
+          const [e] = drawChoices(r.game.words, 1, new Set(), false, randomInt);
+          tell(r, p, e ? e.word : BOT_MISSES[randomInt(BOT_MISSES.length)]);
+        }
+      });
+    }
+  }
+
   // ---- the end ------------------------------------------------------------------------------
 
   function finish(r) {
@@ -1128,6 +1359,11 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
   function canvasesFor(r, playerId) {
     const t = r.turn;
     if (!t || t.phase === 'choose') return [];
+    if (t.kind === 'telephone') {
+      // Only your own drawing of this step, coming back to it; nobody watches anyone else draw.
+      const own = playerId && t.phase === 'tell' && t.stepKind === 'draw' ? t.drawings.get(playerId) : null;
+      return own ? [{ turn: t.n, team: null, ops: toOps(own) }] : [];
+    }
     if (t.kind !== 'duel') return [{ turn: t.n, team: null, ops: toOps(t.drawing) }];
     const p = playerId ? r.players.get(playerId) : null;
     return t.teams
@@ -1241,7 +1477,8 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     }
     if (r.host === p.id) r.host = (people.find((q) => q.online > 0) ?? people[0]).id;
     const t = r.turn;
-    if (r.game && r.phase !== 'final' && present(r).length < (r.game.mode === 'forger' ? 3 : 2)) return finish(r);
+    if (r.game && r.phase !== 'final' && present(r).length < (r.game.mode === 'forger' || r.game.mode === 'telephone' ? 3 : 2)) return finish(r);
+    if (t?.kind === 'telephone' && r.phase === 'tell') maybeEndStep(r);
     if (t?.kind === 'classic' && t.drawer === p.id && (r.phase === 'draw' || r.phase === 'choose')) return endTurn(r, 'drawer-gone');
     if (t?.kind === 'forger' && t.forger === p.id && ['forge', 'vote', 'unmask'].includes(r.phase)) return forgerReveal(r, 'forger-gone');
     if (t?.kind === 'forger' && r.phase === 'forge' && t.stroke?.player === p.id) return nextStroke(r);
@@ -1315,6 +1552,27 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     view(code, playerId = null) {
       const r = room(code);
       return view(r, playerId ? (r.players.get(playerId) ?? null) : null);
+    },
+
+    /** Stille Post: the drawing a player is to describe in this step. */
+    prompt(code, token) {
+      const r = room(code);
+      const p = player(r, token);
+      const t = r.turn;
+      if (t?.kind !== 'telephone' || r.phase !== 'tell' || t.stepKind !== 'describe' || !t.order.includes(p.id)) throw new GameError('wrong-phase', 409);
+      const prev = r.game.chains[chainOf(t, p.id)].entries[t.step - 1];
+      return { turn: t.n, step: t.step, ops: prev?.drawing ? toOps(prev.drawing) : [] };
+    },
+
+    /** Stille Post: every chain, once the showcase has begun. */
+    chains(code) {
+      const r = room(code);
+      const chains = r.game?.mode === 'telephone' ? r.game.chains : null;
+      if (!chains || (r.phase !== 'showcase' && r.phase !== 'final')) throw new GameError('wrong-phase', 409);
+      return chains.map((c) => ({
+        owner: c.owner,
+        entries: c.entries.map((e) => (e.kind === 'drawing' ? { player: e.player, kind: e.kind, ops: toOps(e.drawing) } : { player: e.player, kind: e.kind, text: e.text })),
+      }));
     },
 
     /** The finished game's drawings, for the gallery (only once the game is over). */
@@ -1402,12 +1660,19 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           return;
         }
         case 'ink': {
-          requirePhase(r, 'draw', 'forge');
+          requirePhase(r, 'draw', 'forge', 'tell');
           // A batch from a turn that's over (sent just as time ran out) is dropped quietly.
           if (body?.turn !== t.n) return;
           if (t.kind === 'classic') {
             if (t.drawer !== p.id) throw new GameError('not-drawer', 403);
             sendInk(r, t.n, applyOps(t.drawing, spiceFilter(t, t.drawing, body?.ops)), { except: p.id });
+            return;
+          }
+          if (t.kind === 'telephone') {
+            // Stille Post: kept for the chain, shown to nobody until the end.
+            if (r.phase !== 'tell' || t.stepKind !== 'draw' || !t.order.includes(p.id)) throw new GameError('wrong-phase', 409);
+            if (!t.drawings.has(p.id)) t.drawings.set(p.id, newDrawing());
+            applyOps(t.drawings.get(p.id), body?.ops);
             return;
           }
           if (t.kind === 'duel') {
@@ -1418,6 +1683,27 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           }
           if (t.stroke?.player !== p.id) throw new GameError('not-drawer', 403);
           sendInk(r, t.n, applyOps(t.drawing, forgerOps(t, p, body?.ops)), { except: p.id });
+          return;
+        }
+        case 'tell': {
+          requirePhase(r, 'tell');
+          tell(r, p, body?.text);
+          return;
+        }
+        case 'done': {
+          // Stille Post: this drawing is finished.
+          requirePhase(r, 'tell');
+          if (t.stepKind !== 'draw' || !t.order.includes(p.id)) throw new GameError('wrong-phase', 409);
+          t.done.add(p.id);
+          touch(r);
+          maybeEndStep(r);
+          return;
+        }
+        case 'next':
+        case 'prev': {
+          requireHost(r, p);
+          requirePhase(r, 'showcase');
+          showStep(r, action === 'next' ? 1 : -1);
           return;
         }
         case 'pass': {
@@ -1438,7 +1724,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           return;
         }
         case 'like': {
-          requirePhase(r, 'draw', 'reveal', 'forge', 'vote');
+          requirePhase(r, 'draw', 'reveal', 'forge', 'vote', 'showcase');
           if (isDrawer(t, p.id)) throw new GameError('own-drawing', 409);
           const value = body?.value;
           if (value !== 1 && value !== -1 && value !== 0) throw new GameError('like');
@@ -1459,8 +1745,9 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         }
         case 'skip': {
           requireHost(r, p);
-          requirePhase(r, 'choose', 'draw', 'forge', 'vote', 'unmask');
-          if (t.kind === 'duel') endDuel(r, 'skip');
+          requirePhase(r, 'choose', 'draw', 'forge', 'vote', 'unmask', 'tell');
+          if (t.kind === 'telephone') endStep(r);
+          else if (t.kind === 'duel') endDuel(r, 'skip');
           else if (t.kind === 'forger') forgerReveal(r, 'skip');
           else endTurn(r, 'skip');
           return;
@@ -1570,6 +1857,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           if (now >= t.stroke.endsAt + 2000 || (p && !p.bot && goneFor(p, STROKE_GRACE))) nextStroke(r);
         } else if (t.kind === 'forger' && r.phase === 'vote' && now >= t.endsAt + 2000) endVote(r);
         else if (t.kind === 'forger' && r.phase === 'unmask' && now >= t.endsAt + 2000) forgerReveal(r, 'caught');
+        else if (t.kind === 'telephone' && r.phase === 'tell' && now >= t.endsAt + 2000) endStep(r);
         else if (r.phase === 'reveal' && now >= t.revealEndsAt + 2000) afterReveal(r);
       }
     },

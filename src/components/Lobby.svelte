@@ -21,8 +21,9 @@
     blitz: { rounds: 2, seconds: 45, words: 1, hints: 3 },
     forger: { rounds: 3, laps: 2, strokeSeconds: 15 },
     duel: { rounds: 2, seconds: 80, hints: 2 },
+    telephone: { seconds: 80 },
   };
-  const MODES = ['classic', 'blitz', 'forger', 'duel'] as const;
+  const MODES = ['classic', 'blitz', 'forger', 'duel', 'telephone'] as const;
   const SPICES: SpiceChoice[] = $derived(config?.spices ?? ['off', 'random', 'blind', 'oneline', 'ink', 'three', 'mirror', 'shaky']);
   const TEAMS = $derived(config?.teams ?? [2, 3, 4]);
   const LAPS = $derived(config?.laps ?? [1, 2, 3]);
@@ -56,7 +57,8 @@
   const bots = $derived(view.players.filter((p) => p.bot).length);
   const duel = $derived(settings.mode === 'duel');
   const forger = $derived(settings.mode === 'forger');
-  const minPlayers = $derived(forger ? 3 : 2);
+  const telephone = $derived(settings.mode === 'telephone');
+  const minPlayers = $derived(forger || telephone ? 3 : 2);
   const teamLists = $derived(
     Array.from({ length: view.settings.teams }, (_, team) => view.players.filter((p) => p.team === team)),
   );
@@ -223,12 +225,14 @@
       </div>
       <p class="hint wide">{t(`mode_${settings.mode}_hint`)}</p>
     </div>
+    {#if !telephone}
     <div class="row">
       <span class="name">{t('rounds')}</span>
       <div class="chips">
         {#each ROUNDS as n (n)}{@render choice(String(n), settings.rounds === n, () => change({ rounds: n }))}{/each}
       </div>
     </div>
+    {/if}
     {#if forger}
       <div class="row">
         <span class="name">{t('laps')}</span>
@@ -249,7 +253,7 @@
           {#each SECONDS as n (n)}{@render choice(t('secondsUnit', { n }), settings.seconds === n, () => change({ seconds: n }))}{/each}
         </div>
       </div>
-      {#if !duel}
+      {#if !duel && !telephone}
         <div class="row">
           <span class="name">{t('words')}</span>
           <div class="chips">
@@ -257,12 +261,14 @@
           </div>
         </div>
       {/if}
+      {#if !telephone}
       <div class="row">
         <span class="name">{t('hints')}</span>
         <div class="chips">
           {#each HINTS as n (n)}{@render choice(String(n), settings.hints === n, () => change({ hints: n }))}{/each}
         </div>
       </div>
+      {/if}
       {#if duel}
         <div class="row">
           <span class="name">{t('teams')}</span>
@@ -271,6 +277,7 @@
           </div>
         </div>
       {/if}
+      {#if !telephone}
       <div class="row">
         <span class="name">{t('spice')}</span>
         <div class="chips">
@@ -278,10 +285,11 @@
         </div>
         <p class="hint wide">{t(`spice_${settings.spice}_hint` as Key)}</p>
       </div>
+      {/if}
     {/if}
 
     {#if more}
-      {#if !forger}
+      {#if !forger && !telephone}
       <div class="row">
         <span class="name">{t('wordMode')}</span>
         <div class="chips">
@@ -343,7 +351,7 @@
   <div class="go">
     {#if isHost}
       <button class="btn primary block" type="button" disabled={view.players.length < minPlayers} onclick={() => act('start')}>{t('start')}</button>
-      {#if view.players.length < minPlayers}<p class="hint center">{forger ? t('startNeedsThree') : t('startNeeds')}</p>{/if}
+      {#if view.players.length < minPlayers}<p class="hint center">{minPlayers === 3 ? t('startNeedsThree') : t('startNeeds')}</p>{/if}
     {:else}
       <p class="waiting display">{t('waitingFor', { name: hostName })}</p>
     {/if}

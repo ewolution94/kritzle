@@ -6,7 +6,9 @@
   import type { Room } from '../lib/room.svelte';
   import Final from './Final.svelte';
   import Forger from './Forger.svelte';
+  import Telephone from './Telephone.svelte';
   import Lobby from './Lobby.svelte';
+  import Sounds from './Sounds.svelte';
   import Turn from './Turn.svelte';
 
   let { room, onleave, onrejoin }: { room: Room; onleave: () => void; onrejoin: () => void } = $props();
@@ -33,6 +35,8 @@
   }
 </script>
 
+<Sounds {room} />
+
 {#if !view}
   <p class="label wait">{t('reconnecting')}</p>
 {:else if view.phase === 'gone'}
@@ -45,6 +49,8 @@
   <button class="btn quiet leave" type="button" onclick={leave}>{t('leaveGame')}</button>
 {:else if view.phase === 'final'}
   <Final {room} {view} onleave={leave} />
+{:else if view.turn?.kind === 'telephone'}
+  <Telephone {room} {view} />
 {:else if view.turn?.kind === 'forger'}
   <Forger {room} {view} />
 {:else if view.turn}

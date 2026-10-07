@@ -84,6 +84,15 @@ jobs:
           curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $dtoken" --data '{"add":true}' $base/api/rooms/$dcode/bot
           curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $dtoken" --data '{}' $base/api/rooms/$dcode/start
           curl -s -N --max-time 2 "$base/api/rooms/$dcode/events" | grep -q '"kind":"duel"'
+          # Stille Post starts with everyone writing; the chains stay closed until the showcase.
+          s=$(curl -sf -X POST -H 'content-type: application/json' --data '{"name":"CI"}' $base/api/rooms)
+          scode=$(echo "$s" | node -pe 'JSON.parse(require("fs").readFileSync(0)).code')
+          stoken=$(echo "$s" | node -pe 'JSON.parse(require("fs").readFileSync(0)).token')
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $stoken" --data '{"mode":"telephone"}' $base/api/rooms/$scode/settings
+          for _ in 1 2; do curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $stoken" --data '{"add":true}' $base/api/rooms/$scode/bot; done
+          curl -sf -X POST -H 'content-type: application/json' -H "x-kritzle-token: $stoken" --data '{}' $base/api/rooms/$scode/start
+          curl -s -N --max-time 2 "$base/api/rooms/$scode/events" | grep -q '"stepKind":"write"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/rooms/$scode/chains)" = 409
           # The gallery opens only once the game is over.
           test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/rooms/$code/gallery)" = 409
           # The Census forwarder is wired in; without KRITZLE_CENSUS it answers locally.

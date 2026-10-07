@@ -6,9 +6,12 @@
 //   POST /api/rooms/:code/join {name, avatar, token?}   a seat (the same one again with your token)
 //   GET  /api/rooms/:code/events?p=<id>   the room for one page (SSE; below)
 //   GET  /api/rooms/:code/gallery         the finished game's drawings (once it's over)
+//   GET  /api/rooms/:code/prompt          Stille Post: the drawing you're to describe (with your token)
+//   GET  /api/rooms/:code/chains          Stille Post: every chain, from the showcase on
 //   POST /api/rooms/:code/<action>        settings, start, choose, chat, ink, like, react, skip,
 //                                         rematch, bot, avatar, kick, leave; team, shuffle (duel);
-//                                         pass, vote, unmask (Fälscher)
+//                                         pass, vote, unmask (Fälscher); tell, done, next, prev
+//                                         (Stille Post)
 //                                         with your token in `x-kritzle-token`
 //   GET  /api/rooms/:code/events          without `p`: the same stream for the big screen
 //
@@ -173,6 +176,18 @@ export function createApi({ games }) {
       if (action === 'events') {
         if (req.method !== 'GET') throw new GameError('method', 405);
         events(req, res, code, url.searchParams.get('p'));
+        return true;
+      }
+
+      if (action === 'prompt') {
+        if (req.method !== 'GET') throw new GameError('method', 405);
+        json(res, 200, games.prompt(code, req.headers['x-kritzle-token']));
+        return true;
+      }
+
+      if (action === 'chains') {
+        if (req.method !== 'GET') throw new GameError('method', 405);
+        json(res, 200, { chains: games.chains(code) });
         return true;
       }
 

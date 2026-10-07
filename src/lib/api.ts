@@ -3,8 +3,8 @@
 import type { Avatar } from './avatar';
 import type { Op } from './ink';
 
-export type Phase = 'lobby' | 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'reveal' | 'final' | 'gone';
-export type Mode = 'classic' | 'blitz' | 'forger' | 'duel';
+export type Phase = 'lobby' | 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'tell' | 'showcase' | 'reveal' | 'final' | 'gone';
+export type Mode = 'classic' | 'blitz' | 'forger' | 'duel' | 'telephone';
 export type Spice = 'blind' | 'oneline' | 'ink' | 'three' | 'mirror' | 'shaky';
 export type SpiceChoice = 'off' | 'random' | Spice;
 export type WordMode = 'normal' | 'hidden' | 'combo';
@@ -63,12 +63,12 @@ export interface TeamTurn {
 }
 
 export interface Turn {
-  kind: 'classic' | 'duel' | 'forger';
+  kind: 'classic' | 'duel' | 'forger' | 'telephone';
   n: number;
   round: number;
   /** classic: the drawer; null in a duel (each team has one) and in Fälscher. */
   drawer: string | null;
-  phase: 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'reveal';
+  phase: 'choose' | 'draw' | 'forge' | 'vote' | 'unmask' | 'tell' | 'showcase' | 'reveal';
   /** choose */
   endsAt: number;
   choices?: { word: string; difficulty: Difficulty }[] | null;
@@ -109,6 +109,23 @@ export interface Turn {
   caught?: boolean | null;
   forgerGuess?: string | null;
   forgerRight?: boolean | null;
+  /** Stille Post */
+  steps?: number;
+  stepKind?: 'write' | 'draw' | 'describe';
+  done?: string[];
+  myDone?: boolean;
+  myText?: string | null;
+  prompt?: string | null;
+  promptDrawing?: boolean;
+  suggestion?: string | null;
+  show?: { chain: number; entry: number; owner: string; chains: number; length: number } | null;
+}
+
+export interface ChainEntry {
+  player: string;
+  kind: 'text' | 'drawing';
+  text?: string;
+  ops?: Op[];
 }
 
 export interface Awards {
@@ -129,7 +146,7 @@ export interface DrawingInfo {
   dislikes: number;
   guessed: number;
   possible: number;
-  kind: 'classic' | 'duel' | 'forger';
+  kind: 'classic' | 'duel' | 'forger' | 'telephone';
   team: number | null;
 }
 
@@ -210,6 +227,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+const withToken = (token: string): RequestInit => ({ headers: { 'x-kritzle-token': token } });
+
 const post = (body: unknown, token?: string): RequestInit => ({
   method: 'POST',
   headers: { 'content-type': 'application/json', ...(token ? { 'x-kritzle-token': token } : {}) },
@@ -222,8 +241,10 @@ export const api = {
   info: (code: string) => request<{ code: string; phase: Phase; players: number; full: boolean }>(`/api/rooms/${code}`),
   join: (code: string, name: string, avatar: Avatar | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, avatar, token })),
   act: (seat: Seat, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
+  prompt: (seat: Seat) => request<{ turn: number; step: number; ops: Op[] }>(`/api/rooms/${seat.code}/prompt`, withToken(seat.token)),
+  chains: (code: string) => request<{ chains: { owner: string; entries: ChainEntry[] }[] }>(`/api/rooms/${code}/chains`),
   gallery: (code: string) =>
-    request<{ drawings: { n: number; drawer: string; word: string; kind: 'classic' | 'duel' | 'forger'; team: number | null; ops: Op[] }[] }>(`/api/rooms/${code}/gallery`),
+    request<{ drawings: { n: number; drawer: string; word: string; kind: 'classic' | 'duel' | 'forger' | 'telephone'; team: number | null; ops: Op[] }[] }>(`/api/rooms/${code}/gallery`),
 };
 
 /** Room codes: four consonants (server/game.mjs → CODE). */

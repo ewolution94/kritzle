@@ -7,7 +7,8 @@
   import { onMount } from 'svelte';
   import { api, ApiError, type View } from '../lib/api';
   import { errorText, num, t, type Key } from '../lib/i18n.svelte';
-  import { duration, H, paintAll, render, toActions, W, type Action } from '../lib/ink';
+  import { timelapseGif } from '../lib/gif';
+  import { duration, firstInk, H, paintAll, render, toActions, W, type Action } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
   import Avatar from './Avatar.svelte';
 
@@ -36,6 +37,7 @@
   const teamScores = $derived(view.teams ? view.teams.map((score, team) => ({ team, score })).sort((a, b) => b.score - a.score) : null);
   const teamTie = $derived(Boolean(teamScores && teamScores.length > 1 && teamScores[0].score === teamScores[1].score));
   const teamName = (team: number) => t(`team_${team}` as Key);
+  const telephone = $derived(view.game?.mode === 'telephone');
 
   onMount(() => {
     api.gallery(view.code).then(
@@ -52,7 +54,7 @@
     return () => cancelAnimationFrame(frame);
   });
 
-  /** The timelapse: the whole drawing in its own rhythm, squeezed into at most eight seconds. */
+  /** The timelapse: from the first line on, in the drawing's own rhythm, squeezed into at most eight seconds. */
   function replay() {
     cancelAnimationFrame(frame);
     const d = shownDrawing;
@@ -64,10 +66,11 @@
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
     const total = duration(d.actions);
-    const speed = Math.max(1, total / 8000);
+    const first = firstInk(d.actions);
+    const speed = Math.max(1, (total - first) / 8000);
     const start = performance.now();
     const step = () => {
-      const until = (performance.now() - start) * speed;
+      const until = first + (performance.now() - start) * speed;
       paintAll(ctx, d.actions, until);
       if (until < total) frame = requestAnimationFrame(step);
     };
@@ -77,6 +80,32 @@
   $effect(() => {
     if (open && shownDrawing && replayCanvas) replay();
   });
+
+  let gifBusy = $state(false);
+
+  /** The timelapse as a looping GIF. */
+  async function downloadGif(d: Drawing) {
+    gifBusy = true;
+    // Let the button show its busy state before the frames are painted.
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const bytes = timelapseGif(d.actions);
+      saveBlob(new Blob([bytes], { type: 'image/gif' }), `kritzle-${fileName(d.word)}.gif`);
+    } finally {
+      gifBusy = false;
+    }
+  }
+
+  function saveBlob(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   async function save(canvas: HTMLCanvasElement, name: string) {
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
@@ -174,7 +203,7 @@
 <div class="final">
   <h1 class="display title">
     <span class="hl">
-      {#if teamScores}{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}{:else}{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}{/if}
+      {#if telephone}{t('telephoneEnd')}{:else if teamScores}{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}{:else}{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}{/if}
     </span>
   </h1>
 
@@ -186,6 +215,7 @@
     </ol>
   {/if}
 
+  {#if !telephone}
   <ol class="podium">
     {#each podium as p (p.id)}
       {@const place = ranked.indexOf(p) + 1}
@@ -198,7 +228,9 @@
     {/each}
   </ol>
 
-  {#if ranked.length > 3}
+  {/if}
+
+  {#if ranked.length > 3 && !telephone}
     <ol class="rest" start="4">
       {#each ranked.slice(3) as p (p.id)}
         <li><span class="rank">{ranked.indexOf(p) + 1}.</span><Avatar avatar={p.avatar} size={30} /><span class="name">{p.name}</span><span class="score">{num(p.score)}</span></li>
@@ -238,7 +270,7 @@
               <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" /></svg></span>
             </button>
             <span class="meta">
-              <b>{d.word}</b>
+              <b>{d.kind === 'telephone' ? `„${d.word}“` : d.word}</b>
               <span>
                 {#if d.team !== null}<i class="dot t{d.team}" aria-hidden="true"></i>{/if}{(d.kind === 'forger' ? t('forgerTag', { name: names.get(d.drawer) ?? '' }) : (names.get(d.drawer) ?? '')) + (d.likes ? ` · ♥ ${d.likes}` : '')}
               </span>
@@ -273,6 +305,7 @@
       <div class="row">
         <button class="btn small" type="button" onclick={replay}>{t('replay')}</button>
         <button class="btn small" type="button" onclick={() => shownDrawing && downloadOne(shownDrawing)}>{t('downloadPng')}</button>
+        <button class="btn small" type="button" disabled={gifBusy} onclick={() => shownDrawing && downloadGif(shownDrawing)}>{gifBusy ? t('makingGif') : t('gif')}</button>
       </div>
     </div>
   {/if}

@@ -6,6 +6,7 @@
 <script lang="ts">
   import { themeShift } from '../../vendor/ewo/elements/theme-shift.js';
   import { i18n, setLanguage, systemLang, t, type LangChoice } from '../lib/i18n.svelte';
+  import { play, setSound, sound } from '../lib/sound.svelte';
 
   let { open, onclose }: { open: boolean; onclose: () => void } = $props();
 
@@ -44,6 +45,20 @@
           <option value="de">Deutsch</option>
           <option value="en">English</option>
         </ewo-segmented>
+      </div>
+    </section>
+    <section>
+      <h3 class="label">Kritzle</h3>
+      <div class="row">
+        <span class="name">{t('soundsHint')}</span>
+        <ewo-switch
+          checked={sound.on}
+          aria-label={t('sounds')}
+          onchange={(e) => {
+            setSound(e.detail.checked);
+            if (e.detail.checked) play.guessed();
+          }}
+        ></ewo-switch>
       </div>
     </section>
   {/if}
