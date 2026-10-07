@@ -26,6 +26,16 @@ var o = t`
   .faded { filter: grayscale(1); opacity: 0.55; }
   .strike { fill: none; stroke: var(--_strike); stroke-width: 9; stroke-linecap: round; }
 
+  /* The price tag: the page's colour, a darker shade for the pattern, a fixed dark outline. */
+  .tag { --_tink: var(--ewo-emblem-tag-ink, #212121); }
+  .tag .tp { fill: color-mix(in oklab, var(--_e1), #000 20%); }
+  .tag .tb { fill: none; stroke: color-mix(in oklab, var(--_e1), #000 20%); stroke-width: 22; }
+  .tag .trim { fill: none; stroke: var(--_tink); stroke-width: 4.5; stroke-linejoin: round; }
+  .tag .thole { fill: var(--ewo-emblem-paper, #ffffff); stroke: var(--_tink); stroke-width: 3.5; }
+  .tag .tf { fill: #ffffff; stroke: var(--_tink); stroke-width: 7; stroke-linejoin: round; paint-order: stroke; }
+  .tag .tl { fill: none; stroke: var(--_tink); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  .tag .ti { fill: #ffffff; stroke: var(--_tink); stroke-width: 3.4; paint-order: stroke; font: 800 40px/1 var(--ewo-sans); }
+
   /* The doodle's face is round on paper; its crown may rise above the circle. */
   :host([theme='doodle']) { border-radius: 50%; background: var(--ewo-emblem-paper, #ffffff); }
   :host([theme='doodle'][ring]) { box-shadow: 0 0 0 2px var(--_ink); }
@@ -54,7 +64,8 @@ var o = t`
 		"crown",
 		"boil",
 		"dead",
-		"label"
+		"label",
+		"initial"
 	];
 	#e = this.attachInternals();
 	connectedCallback() {
@@ -114,7 +125,8 @@ var o = t`
 		let e = i(this.getAttribute("theme")), t = this.hasAttribute("boil") ? e.frames ?? 1 : 1, n = {
 			mood: this.getAttribute("mood") ?? "",
 			crown: this.hasAttribute("crown"),
-			dead: this.hasAttribute("dead")
+			dead: this.hasAttribute("dead"),
+			initial: this.getAttribute("initial") ?? ""
 		}, a = "", o = t > 1 ? "frame boil" : "frame";
 		for (let i = 0; i < t; i++) a += `<span class="${o}">${r(e.id, this.value, {
 			...n,

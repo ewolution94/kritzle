@@ -57,7 +57,7 @@ var f = {
   }
   .stage ewo-emblem {
     position: absolute;
-    inset: 8%;
+    inset: var(--ewo-emblem-maker-inset, 8%);
     width: auto;
     height: auto;
   }
@@ -110,7 +110,11 @@ var f = {
   }
 `, m = (e) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${e}"/></svg>`, h = "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3.5\"/><circle cx=\"9\" cy=\"9\" r=\"1.2\"/><circle cx=\"15\" cy=\"15\" r=\"1.2\"/><circle cx=\"15\" cy=\"9\" r=\"1.2\"/><circle cx=\"9\" cy=\"15\" r=\"1.2\"/><circle cx=\"12\" cy=\"12\" r=\"1.2\"/></svg>", g = class extends e {
 	static styles = [p];
-	static observedAttributes = ["theme", "value"];
+	static observedAttributes = [
+		"theme",
+		"value",
+		"initial"
+	];
 	#e;
 	#t = 0;
 	connectedCallback() {
@@ -125,7 +129,7 @@ var f = {
 				this.setAttribute("value", d(this.theme).join(","));
 				return;
 			}
-			e === "value" && this.root.querySelector("ewo-emblem") ? this.#n().value = this.value : this.#r();
+			e === "value" && this.root.querySelector("ewo-emblem") ? this.#n().value = this.value : e === "initial" && this.root.querySelector("ewo-emblem") ? this.#n().setAttribute("initial", this.getAttribute("initial") ?? "") : this.#r();
 		}
 	}
 	get theme() {
@@ -145,8 +149,8 @@ var f = {
 		return this.root.querySelector("ewo-emblem");
 	}
 	#r() {
-		let e = i(), t = f[e], n = o(this.theme, e), r = (e, r) => n.map((n, i) => `<button class="arrow" part="arrow" type="button" data-part="${i}" data-step="${e === "prev" ? -1 : 1}" aria-label="${t[e].replace("{part}", n.name)}">${m(r)}</button>`).join("");
-		this.root.innerHTML = `<div class="maker"><div class="col">${r("prev", "M15 5l-7 7 7 7")}</div><div class="stage" part="stage"><ewo-emblem theme="${this.theme}" value="${this.value.join(",")}" boil></ewo-emblem><span class="tag" part="tag" aria-hidden="true"></span></div><div class="col">${r("next", "M9 5l7 7-7 7")}</div></div><p class="legend" part="legend">${n.map((e) => e.name).join(" · ")}</p><button class="dice" part="dice" type="button">${h}<span>${t.roll}</span></button><p class="sr" aria-live="polite"></p>`;
+		let e = i(), t = f[e], n = o(this.theme, e), r = (e, r) => n.map((n, i) => `<button class="arrow" part="arrow ${e}" type="button" data-part="${i}" data-step="${e === "prev" ? -1 : 1}" aria-label="${t[e].replace("{part}", n.name)}">${m(r)}</button>`).join("");
+		this.root.innerHTML = `<div class="maker"><div class="col">${r("prev", "M15 5l-7 7 7 7")}</div><div class="stage" part="stage"><ewo-emblem theme="${this.theme}" value="${this.value.join(",")}" boil></ewo-emblem><span class="tag" part="tag" aria-hidden="true"></span></div><div class="col">${r("next", "M9 5l7 7-7 7")}</div></div><p class="legend" part="legend">${n.map((e) => e.name).join(" · ")}</p><button class="dice" part="dice" type="button">${h}<span>${t.roll}</span></button><p class="sr" aria-live="polite"></p>`, this.#n().setAttribute("initial", this.getAttribute("initial") ?? "");
 		for (let e of this.root.querySelectorAll(".arrow")) e.addEventListener("click", () => this.#i(Number(e.dataset.part), Number(e.dataset.step)));
 		this.root.querySelector(".dice").addEventListener("click", () => this.#a());
 	}

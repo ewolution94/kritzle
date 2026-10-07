@@ -114,12 +114,24 @@
             {
               "description": "The big emblem's stage (default 200px).",
               "name": "--ewo-emblem-maker-size"
+            },
+            {
+              "description": "The emblem's margin inside the stage (default 8%; Kritzle's 6%).",
+              "name": "--ewo-emblem-maker-inset"
             }
           ],
           "cssParts": [
             {
-              "description": "Each arrow button.",
+              "description": "Each arrow button; the left ones are also `prev`, the right ones `next`.",
               "name": "arrow"
+            },
+            {
+              "description": "The left column's arrows.",
+              "name": "prev"
+            },
+            {
+              "description": "The right column's arrows.",
+              "name": "next"
             },
             {
               "description": "The square the emblem sits on.",
@@ -250,7 +262,7 @@
             {
               "name": "theme",
               "type": {
-                "text": "'heraldry' | 'doodle' | 'token'"
+                "text": "'heraldry' | 'doodle' | 'token' | 'tag'"
               },
               "description": "Which generator (default heraldry)."
             },
@@ -260,6 +272,13 @@
                 "text": "string"
               },
               "description": "The numbers, comma-separated; the `value` property also takes an array. Random when missing."
+            },
+            {
+              "name": "initial",
+              "type": {
+                "text": "string"
+              },
+              "description": "Tag: the player's name, for the initial figure."
             }
           ],
           "superclass": {
@@ -311,8 +330,12 @@
               "name": "--ewo-emblem-strike"
             },
             {
-              "description": "What a doodle face sits on.",
+              "description": "What a doodle face sits on; the tag's hole.",
               "name": "--ewo-emblem-paper"
+            },
+            {
+              "description": "The tag's outline (default a dark ink, on any page).",
+              "name": "--ewo-emblem-tag-ink"
             }
           ],
           "members": [
@@ -392,7 +415,7 @@
             {
               "name": "theme",
               "type": {
-                "text": "'heraldry' | 'doodle' | 'token'"
+                "text": "'heraldry' | 'doodle' | 'token' | 'tag'"
               },
               "description": "Which generator draws it (default heraldry)."
             },
@@ -444,6 +467,13 @@
                 "text": "string"
               },
               "description": "Accessible name; without it the emblem is decoration."
+            },
+            {
+              "name": "initial",
+              "type": {
+                "text": "string"
+              },
+              "description": "Tag: the player's name; its first letter is figure 0."
             },
             {
               "type": {

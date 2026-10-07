@@ -250,4 +250,4 @@ var e = [
 	]
 };
 //#endregion
-export { a as heraldry, c as token };
+export { e as CHARGES, a as heraldry, c as token };

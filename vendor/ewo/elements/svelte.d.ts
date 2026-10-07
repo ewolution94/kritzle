@@ -60,7 +60,7 @@ declare module 'svelte/elements' {
       'ontheme-change'?: Handler<EwoSettingsBasics, { value: SettingsThemeChoice }>;
     };
     'ewo-emblem': HTMLAttributes<EwoEmblem> & {
-      theme?: 'heraldry' | 'doodle' | 'token';
+      theme?: 'heraldry' | 'doodle' | 'token' | 'tag';
       value?: number[] | string;
       size?: number | string;
       mood?: '' | 'happy';
@@ -69,10 +69,12 @@ declare module 'svelte/elements' {
       ring?: boolean;
       dead?: boolean;
       label?: string;
+      initial?: string;
     };
     'ewo-emblem-maker': Omit<HTMLAttributes<EwoEmblemMaker>, 'onchange'> & {
-      theme?: 'heraldry' | 'doodle' | 'token';
+      theme?: 'heraldry' | 'doodle' | 'token' | 'tag';
       value?: number[] | string;
+      initial?: string;
       onchange?: Handler<EwoEmblemMaker, { value: number[] }>;
     };
     'ewo-halftone': Omit<HTMLAttributes<EwoHalftone>, 'onload' | 'onerror'> & { src?: string; alt?: string; cell?: number; color?: 'ink' | 'photo'; fit?: 'cover' | 'contain'; lens?: boolean; ripple?: boolean; origin?: string };

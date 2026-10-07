@@ -18,6 +18,8 @@ export interface DrawOptions {
     dead?: boolean;
     /** Makes the clip path's id unique when several emblems share one document (not in a shadow root). */
     uid?: string;
+    /** Tag: the player's name (or its first letter), drawn when figure 0 is chosen. */
+    initial?: string;
 }
 export interface EmblemTheme {
     id: string;
@@ -31,7 +33,7 @@ export interface EmblemTheme {
     fromSeed(seed: number): number[];
 }
 export declare const THEMES: Record<string, EmblemTheme>;
-export type EmblemThemeId = 'heraldry' | 'doodle' | 'token';
+export type EmblemThemeId = 'heraldry' | 'doodle' | 'token' | 'tag';
 export declare function emblemTheme(id: string | null | undefined): EmblemTheme;
 /** How many choices each part has. */
 export declare function emblemRanges(theme: string): number[];

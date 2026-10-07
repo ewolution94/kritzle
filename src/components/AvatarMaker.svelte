@@ -13,11 +13,10 @@
 <ewo-emblem-maker class="maker" theme="doodle" value={avatar} onchange={(e) => onchange(e.detail.value as AvatarValue)}></ewo-emblem-maker>
 
 <style>
-  /* Its parent lays the three rows out 16px apart; the stage is a little larger than the face's old
-     200px box so the face keeps its size (the maker insets it by 8%, Kritzle's by 6%). */
+  /* Its parent lays the three rows out 16px apart; the face sits 6% inside its 200px stage. */
   .maker {
     gap: 16px;
-    --ewo-emblem-maker-size: 210px;
+    --ewo-emblem-maker-inset: 6%;
     --ewo-emblem-ink: var(--ink);
   }
   .maker::part(arrow) {
@@ -27,6 +26,10 @@
     background: var(--card);
     color: var(--ink);
     -webkit-tap-highlight-color: transparent;
+  }
+  /* The right column's corners wobble the other way. */
+  .maker::part(next) {
+    border-radius: 6px 11px 5px 12px / 12px 5px 11px 6px;
   }
   @media (hover: hover) {
     .maker::part(arrow):hover {
