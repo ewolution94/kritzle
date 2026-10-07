@@ -9,7 +9,9 @@ afternoon meeting, mostly played on a video call. Live at
   and an avatar are enough, and a reload or a locked phone puts you back in your seat.
 - **The avatar maker:** arrows on either side of a doodle face, one pair per part (head, eyes, extra,
   mouth, colour), and a dice: 96,000 faces. An avatar is five small numbers; the doodle's wobble is
-  seeded from them, so every screen draws the same face. A right guess makes it laugh for a moment;
+  seeded from them, so every screen draws the same face. The faces and the maker are Folio's emblems
+  in their doodle theme (`<ewo-emblem>`, `<ewo-emblem-maker>`, shared with Vollmond's shields),
+  dressed in the Sketchbook look through the maker's parts. A right guess makes it laugh for a moment;
   the winner wears a crown on the podium.
 - **A turn:** the drawer picks one of 1 to 5 words (15 seconds, then one at random), each marked
   easy, medium or hard. Everyone else guesses in the chat; the word shows as blanks, and hints uncover
@@ -141,7 +143,7 @@ server/avatar.mjs         an avatar's five numbers
 server/census.mjs         forwards /_e.js and /_e to Census (visit counts)
 src/lib/room.svelte.ts    the live room: the stream, reconnects, moves, the drawer's ink batches
 src/lib/ink.ts            painting the drawing, the drawer's fill, playback on the drawer's timing
-src/lib/avatar.ts         the avatar parts and the face drawn from five numbers
+src/lib/avatar.ts         an avatar's five numbers (Folio's doodle emblem draws the face)
 src/lib/sound.svelte.ts   the sounds, synthesised with Web Audio
 src/lib/gif.ts            a drawing's timelapse as an animated GIF (LZW, no dependencies)
 src/components/           Home, Join, AvatarMaker, Game → Lobby, Turn (Canvas, Dock, Chat,

@@ -10,7 +10,7 @@
 // can produce this from custom-elements.json.
 
 import type { DOMAttributes, HTMLAttributes, Key, Ref } from 'react';
-import type { EwoBadge, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
+import type { EwoBadge, EwoEmblem, EwoEmblemMaker, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
 
 type Base<E> = Omit<HTMLAttributes<E>, 'onChange' | 'onInput' | 'onLoad' | 'onError' | 'onCancel' | 'onClose'> &
   Pick<DOMAttributes<E>, 'children'> & {
@@ -46,6 +46,22 @@ declare module 'react' {
         name?: string;
         value?: string;
         onchange?: Handler<{ checked: boolean }>;
+      };
+      'ewo-emblem': Base<EwoEmblem> & {
+        theme?: 'heraldry' | 'doodle' | 'token';
+        value?: number[] | string;
+        size?: number | string;
+        mood?: '' | 'happy';
+        crown?: boolean;
+        boil?: boolean;
+        ring?: boolean;
+        dead?: boolean;
+        label?: string;
+      };
+      'ewo-emblem-maker': Base<EwoEmblemMaker> & {
+        theme?: 'heraldry' | 'doodle' | 'token';
+        value?: number[] | string;
+        onchange?: Handler<{ value: number[] }>;
       };
       'ewo-badge': Base<EwoBadge> & {
         tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'info' | 'unknown' | 'accent';

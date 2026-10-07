@@ -104,6 +104,376 @@
     },
     {
       "kind": "javascript-module",
+      "path": "emblem-maker.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "Choose an emblem: arrows per part around the big emblem, and a dice.",
+          "name": "EwoEmblemMaker",
+          "cssProperties": [
+            {
+              "description": "The big emblem's stage (default 200px).",
+              "name": "--ewo-emblem-maker-size"
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "Each arrow button.",
+              "name": "arrow"
+            },
+            {
+              "description": "The square the emblem sits on.",
+              "name": "stage"
+            },
+            {
+              "description": "The strip naming the new choice.",
+              "name": "tag"
+            },
+            {
+              "description": "The part names under the stage.",
+              "name": "legend"
+            },
+            {
+              "description": "The roll button.",
+              "name": "dice"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#stop",
+              "privacy": "private",
+              "type": {
+                "text": "() => void | undefined"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "#timer",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "theme",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "number[]"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#emblem",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#render",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#step",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "part",
+                  "type": {
+                    "text": "number"
+                  }
+                },
+                {
+                  "name": "delta",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#roll",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#set",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "value",
+                  "type": {
+                    "text": "number[]"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#announce",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "text",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            }
+          ],
+          "events": [
+            {
+              "description": "`detail: { value: number[] }` after a step or a roll.",
+              "name": "change"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "theme",
+              "type": {
+                "text": "'heraldry' | 'doodle' | 'token'"
+              },
+              "description": "Which generator (default heraldry)."
+            },
+            {
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "description": "The numbers, comma-separated; the `value` property also takes an array. Random when missing."
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-emblem-maker",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoEmblemMaker",
+          "declaration": {
+            "name": "EwoEmblemMaker",
+            "module": "emblem-maker.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "emblem.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "A player's emblem: Vollmond's shield, Kritzle's doodled face, or a coin, from a few numbers.",
+          "name": "EwoEmblem",
+          "cssProperties": [
+            {
+              "description": "Heraldry's dark ink.",
+              "name": "--ewo-emblem-1"
+            },
+            {
+              "description": "Heraldry's bright ink.",
+              "name": "--ewo-emblem-2"
+            },
+            {
+              "description": "Heraldry's paper, and the charge.",
+              "name": "--ewo-emblem-3"
+            },
+            {
+              "description": "The shield's rim, the doodle's ring.",
+              "name": "--ewo-emblem-ink"
+            },
+            {
+              "description": "The line through a dead emblem.",
+              "name": "--ewo-emblem-strike"
+            },
+            {
+              "description": "What a doodle face sits on.",
+              "name": "--ewo-emblem-paper"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#internals",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "number[]"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "theme",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "dead",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "boil",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "ring",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "crown",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#size",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#label",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#render",
+              "privacy": "private"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "theme",
+              "type": {
+                "text": "'heraldry' | 'doodle' | 'token'"
+              },
+              "description": "Which generator draws it (default heraldry)."
+            },
+            {
+              "name": "value",
+              "type": {
+                "text": "string"
+              },
+              "description": "The numbers, one per part, comma-separated (\"3,7\"). The `value` property also takes an array."
+            },
+            {
+              "name": "size",
+              "type": {
+                "text": "string"
+              },
+              "description": "A number of pixels or any CSS length (default 48px)."
+            },
+            {
+              "name": "mood",
+              "type": {
+                "text": "'' | 'happy'"
+              },
+              "description": "Doodle: laughing eyes and mouth."
+            },
+            {
+              "name": "crown",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Doodle: the winner's crown."
+            },
+            {
+              "name": "boil",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Doodle: redraws itself three ways in turn (still under reduced motion)."
+            },
+            {
+              "name": "dead",
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Heraldry and token: greyed and struck through."
+            },
+            {
+              "name": "label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Accessible name; without it the emblem is decoration."
+            },
+            {
+              "type": {
+                "text": "boolean"
+              },
+              "description": "Doodle: an ink ring around the face.",
+              "name": "ring"
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-emblem",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoEmblem",
+          "declaration": {
+            "name": "EwoEmblem",
+            "module": "emblem.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "empty.js",
       "declarations": [
         {

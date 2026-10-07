@@ -6,7 +6,7 @@
 // listens for the element's own change event.
 
 import type { HTMLAttributes } from 'svelte/elements';
-import type { EwoBadge, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
+import type { EwoBadge, EwoEmblem, EwoEmblemMaker, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
 
 type Handler<E, D> = (event: CustomEvent<D> & { currentTarget: E }) => void;
 
@@ -58,6 +58,22 @@ declare module 'svelte/elements' {
       'dark-label'?: string;
       'onlanguage-change'?: Handler<EwoSettingsBasics, { value: LanguageChoice }>;
       'ontheme-change'?: Handler<EwoSettingsBasics, { value: SettingsThemeChoice }>;
+    };
+    'ewo-emblem': HTMLAttributes<EwoEmblem> & {
+      theme?: 'heraldry' | 'doodle' | 'token';
+      value?: number[] | string;
+      size?: number | string;
+      mood?: '' | 'happy';
+      crown?: boolean;
+      boil?: boolean;
+      ring?: boolean;
+      dead?: boolean;
+      label?: string;
+    };
+    'ewo-emblem-maker': Omit<HTMLAttributes<EwoEmblemMaker>, 'onchange'> & {
+      theme?: 'heraldry' | 'doodle' | 'token';
+      value?: number[] | string;
+      onchange?: Handler<EwoEmblemMaker, { value: number[] }>;
     };
     'ewo-halftone': Omit<HTMLAttributes<EwoHalftone>, 'onload' | 'onerror'> & { src?: string; alt?: string; cell?: number; color?: 'ink' | 'photo'; fit?: 'cover' | 'contain'; lens?: boolean; ripple?: boolean; origin?: string };
   }
