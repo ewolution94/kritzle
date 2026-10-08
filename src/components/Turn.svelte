@@ -2,8 +2,9 @@
   A turn: choose → draw → reveal, on one stage that fills the visible screen. On a phone the
   canvas sits on top, then the dock (the drawer) or the reactions, the players' strip and the chat;
   while typing, the strip and reactions step aside and the canvas shrinks so the keyboard never
-  covers it (the stage follows visualViewport: learnings/ios-and-webkit.md). On a wide screen the
-  players are on the left and the chat on the right.
+  covers it (the stage follows visualViewport: learnings/ios-and-webkit.md). On a wide screen it's
+  one table in the middle: the players, the canvas and the chat side by side, the round, the word
+  and the clock in a row above them, the drawer's tools in one row under the canvas.
 
   A team duel shows your team's canvas while it draws, and every team's at the end. Würze shows as
   a strip of tape under the word, for everyone.
@@ -111,13 +112,15 @@
   </span>
 {/snippet}
 
-<div class="stage" class:typing class:drawer={drawingNow} bind:this={stage}>
+<div class="stage" class:typing class:drawer={drawingNow} class:minis={duel && turn.phase === 'reveal' && Boolean(turn.teams)} bind:this={stage}>
   <header class="top">
     <div class="status">
-      <span class="label">
-        {t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}
-        {#if duel && ownTeam !== null}· <span class="team-tag t{ownTeam}">{t('teamName', { name: teamName(ownTeam) })}</span>{/if}
-      </span>
+      {#key turn.round}
+        <span class="label round">
+          {t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}
+          {#if duel && ownTeam !== null}· <span class="team-tag t{ownTeam}">{t('teamName', { name: teamName(ownTeam) })}</span>{/if}
+        </span>
+      {/key}
       {#if turn.phase === 'choose'}
         <span class="what">{isDrawer ? t('chooseWord') : t('choosing', { name: drawer?.name ?? '' })}</span>
       {:else if turn.phase === 'reveal'}
@@ -125,23 +128,27 @@
       {:else if turn.word}
         <span class="what">
           <span class="label inline">{isDrawer ? t('youDraw') : t('gotIt')}</span>
-          <span class="word display hl">{turn.word}</span>
-          {@render dots(turn.difficulty)}
+          <span class="line">
+            <span class="word display hl">{turn.word}</span>
+            {@render dots(turn.difficulty)}
+          </span>
         </span>
       {:else}
         <span class="what">
           <span class="label inline">{t('drawing', { name: drawer?.name ?? '' })}</span>
-          {#if turn.pattern}
-            <span class="pattern" aria-label={t('letters', { n: letters })}>
-              {#each slots as c, i (i)}
-                {#if c === '_'}<span class="slot"></span>{:else if c === ' '}<span class="gap"></span>{:else}<span class="letter">{c}</span>{/if}
-              {/each}
-              <span class="count">{letters}</span>
-            </span>
-          {:else}
-            <span class="word display">{t('hiddenWord')}</span>
-          {/if}
-          {@render dots(turn.difficulty)}
+          <span class="line">
+            {#if turn.pattern}
+              <span class="pattern" aria-label={t('letters', { n: letters })}>
+                {#each slots as c, i (i)}
+                  {#if c === '_'}<span class="slot"></span>{:else if c === ' '}<span class="gap"></span>{:else}<span class="letter">{c}</span>{/if}
+                {/each}
+                <span class="count">{letters}</span>
+              </span>
+            {:else}
+              <span class="word display">{t('hiddenWord')}</span>
+            {/if}
+            {@render dots(turn.difficulty)}
+          </span>
         </span>
       {/if}
       {#if turn.spice && turn.phase === 'draw'}
@@ -170,7 +177,7 @@
   </header>
 
   <aside class="side">
-    <Players {view} />
+    <div class="panel"><Players {view} /></div>
   </aside>
 
   <div class="center">
@@ -189,6 +196,7 @@
       >
         {#if turn.phase === 'choose'}
           <div class="overlay">
+            <span class="tape teal round-tape">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })}</span>
             {#if isDrawer && turn.choices}
               <div class="choices">
                 {#each turn.choices as c, i (c.word)}
@@ -308,6 +316,23 @@
   .label.inline {
     font-size: 11px;
   }
+  .line {
+    display: contents;
+  }
+  /* A new round: its label pops once. */
+  .round {
+    animation: round-in 0.9s ease-out;
+  }
+  @keyframes round-in {
+    0% {
+      transform: scale(1.35);
+      background: var(--hi);
+    }
+    60% {
+      transform: scale(1);
+      background: var(--hi);
+    }
+  }
   .word {
     font-size: 26px;
     line-height: 1;
@@ -329,6 +354,18 @@
   }
   .letter {
     border-bottom-color: var(--good);
+    animation: hint 1.4s ease-out;
+  }
+  /* A hint uncovers a letter: it pops on the highlighter, so nobody misses it. */
+  @keyframes hint {
+    0% {
+      transform: scale(1.7);
+      background: var(--hi);
+    }
+    30% {
+      transform: scale(1);
+      background: var(--hi);
+    }
   }
   .gap {
     width: 10px;
@@ -382,12 +419,14 @@
   .side {
     display: none;
   }
+  /* A size container: the drawer's tools fit themselves to the canvas's width (Dock.svelte). */
   .center {
     grid-area: center;
     display: flex;
     flex-direction: column;
     gap: 8px;
     min-width: 0;
+    container-type: inline-size;
   }
   /* The canvas takes the width it can, but never the room the chat needs. */
   .sheet-box {
@@ -416,13 +455,18 @@
     inset: 0;
     z-index: 4;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 14px;
     padding: 12px;
     background: rgb(253 253 251 / 0.86);
   }
   .overlay.soft {
     background: rgb(253 253 251 / 0.55);
+  }
+  .round-tape {
+    transform: rotate(-2deg);
   }
   .choices {
     display: flex;
@@ -552,40 +596,143 @@
     font-size: 13px;
   }
 
+  /* A wide screen: one table in the middle. The canvas is as large as the height allows (or the
+     width, or 1360px), and the players and the chat sit right beside it; the header lines up with
+     the three columns: the round over the players, the word over the canvas, the clock over the chat. */
   @media (min-width: 900px) {
     .stage {
-      grid-template-columns: 230px minmax(0, 1fr) 320px;
-      grid-template-rows: auto minmax(0, 1fr);
+      --side-w: clamp(200px, 14vw, 230px);
+      --talk-w: clamp(250px, 20vw, 320px);
+      --col-gap: 16px;
+      --wide-reserve: 196px;
+      --canvas-w: min(
+        1360px,
+        calc(100vw - var(--side-w) - var(--talk-w) - 2 * var(--col-gap) - 40px),
+        calc((var(--vv-h, 100dvh) - var(--wide-reserve)) * 4 / 3)
+      );
+      grid-template-columns: var(--side-w) var(--canvas-w) var(--talk-w);
+      grid-template-rows: auto auto;
       grid-template-areas: 'top top top' 'side center talk';
-      gap: 16px;
-      padding: 0 20px 16px;
+      justify-content: center;
+      /* Centred while it fits; never cut off at the top when it doesn't. */
+      align-content: center;
+      align-content: safe center;
+      column-gap: var(--col-gap);
+      row-gap: 14px;
+      padding: 12px 20px 16px;
     }
+    .stage.drawer {
+      --wide-reserve: 232px;
+    }
+    /* A duel's reveal shows the other teams' drawings under yours. */
+    .stage.minis {
+      --wide-reserve: 360px;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: subgrid;
+      align-items: center;
+      min-height: 0;
+      padding: 0 0 6px;
+      border-bottom: 0;
+    }
+    .status {
+      display: contents;
+    }
+    .round {
+      grid-column: 1;
+      justify-self: start;
+      padding: 2px 6px;
+      font: 400 26px/1.1 var(--display);
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ink);
+    }
+    .what {
+      grid-column: 2;
+      justify-self: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-align: center;
+    }
+    .line {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .word {
+      font-size: 42px;
+    }
+    .pattern {
+      gap: 7px;
+    }
+    .slot,
+    .letter {
+      width: 26px;
+      height: 38px;
+      border-bottom-width: 3px;
+      font-size: 36px;
+    }
+    .gap {
+      width: 20px;
+    }
+    .count {
+      margin-left: 6px;
+      font-size: 14px;
+    }
+    .dots {
+      align-self: center;
+    }
+    .dots i {
+      width: 9px;
+      height: 9px;
+    }
+    .spice {
+      grid-column: 2;
+      justify-self: center;
+    }
+    .end {
+      grid-column: 3;
+      justify-self: end;
+    }
+    /* The players on a card as tall as they need (scrolling past the canvas's height), the chat on a
+       card as tall as the canvas and its tools, its field at the bottom. */
     .side {
       display: block;
       grid-area: side;
-      min-height: 0;
+      contain: size;
+    }
+    .panel,
+    .talk {
+      background: var(--card);
+      border: 2px solid var(--ink);
+      border-radius: var(--hand);
+      box-shadow: var(--shadow);
+    }
+    .panel {
+      max-height: 100%;
       overflow-y: auto;
-      padding-top: 8px;
+      padding: 8px;
     }
     .strip {
       display: none;
     }
-    .talk {
-      padding-top: 8px;
+    .center {
+      gap: 12px;
     }
     .sheet-box {
-      --reserve: 210px;
-      margin-top: 16px;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
     }
-    .drawer .sheet-box {
-      --reserve: 290px;
-    }
+    /* The chat runs from the canvas's top to the tools' bottom, and scrolls inside. */
     .talk {
       display: flex;
       flex-direction: column;
-    }
-    .word {
-      font-size: 32px;
+      contain: size;
+      padding: 8px;
+      border-radius: var(--hand-2);
     }
   }
 

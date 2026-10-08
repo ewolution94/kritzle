@@ -1,6 +1,8 @@
 <!--
   The drawer's tools: pen, eraser, fill, five sizes, the 24 colours, undo, and clear (held for a
   moment, so a stray tap never wipes a drawing). On a keyboard: B, E, F, 1–5, Ctrl/Cmd+Z.
+  It fits the canvas it sits under (Turn.svelte's size container): the phone's two full-width rows,
+  two compact rows in the middle, or one row under a wide canvas.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
@@ -268,6 +270,42 @@
   .swatch:focus-visible {
     outline: 3px solid var(--tape-2);
     outline-offset: 1px;
+  }
+  /* Under a wider canvas: a compact box in the middle instead of rows stretched across it. */
+  @container (min-width: 520px) {
+    .dock {
+      width: fit-content;
+      max-width: 100%;
+      margin-inline: auto;
+    }
+    .sizes {
+      margin-left: 10px;
+      padding-left: 10px;
+      border-left: 1.5px solid rgb(43 45 51 / 0.2);
+    }
+    .palette {
+      grid-template-columns: repeat(12, 28px);
+    }
+    .palette.few {
+      grid-template-columns: repeat(3, 40px);
+    }
+  }
+  /* Under a wide canvas: one row, the tools and sizes beside the colours. */
+  @container (min-width: 780px) {
+    .dock {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 14px;
+      padding: 8px 12px;
+    }
+    .palette {
+      padding-left: 14px;
+      border-left: 1.5px solid rgb(43 45 51 / 0.2);
+    }
+    .ink {
+      flex-basis: 100%;
+    }
   }
   @media (max-width: 420px) {
     .tools {

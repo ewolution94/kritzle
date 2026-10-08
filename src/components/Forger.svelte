@@ -104,7 +104,7 @@
 <div class="stage" class:typing bind:this={stage}>
   <header class="top">
     <div class="status">
-      <span class="label">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })} · {t('theme', { name: t(`pack_${turn.category}` as Key) })}</span>
+      <span class="label round">{t('round', { n: turn.round, total: view.game?.rounds ?? 1 })} · {t('theme', { name: t(`pack_${turn.category}` as Key) })}</span>
       {#if turn.phase === 'reveal'}
         <span class="what"><span class="label inline">{t('wordWas')}</span> <span class="word display hl">{turn.word}</span></span>
       {:else if turn.forgerMe}
@@ -129,7 +129,7 @@
     </div>
   </header>
 
-  <aside class="side"><Players {view} /></aside>
+  <aside class="side"><div class="panel"><Players {view} /></div></aside>
 
   <div class="center">
     <div class="sheet-box">
@@ -461,35 +461,97 @@
     color: var(--paper);
     font-size: 13px;
   }
+  /* A wide screen: one table in the middle, as in a classic turn (Turn.svelte). */
   @media (min-width: 900px) {
     .stage {
-      grid-template-columns: 230px minmax(0, 1fr) 320px;
-      grid-template-rows: auto minmax(0, 1fr);
+      --side-w: clamp(200px, 14vw, 230px);
+      --talk-w: clamp(250px, 20vw, 320px);
+      --col-gap: 16px;
+      --wide-reserve: 232px;
+      --canvas-w: min(
+        1360px,
+        calc(100vw - var(--side-w) - var(--talk-w) - 2 * var(--col-gap) - 40px),
+        calc((var(--vv-h, 100dvh) - var(--wide-reserve)) * 4 / 3)
+      );
+      grid-template-columns: var(--side-w) var(--canvas-w) var(--talk-w);
+      grid-template-rows: auto auto;
       grid-template-areas: 'top top top' 'side center talk';
-      gap: 16px;
-      padding: 0 20px 16px;
+      justify-content: center;
+      /* Centred while it fits; never cut off at the top when it doesn't. */
+      align-content: center;
+      align-content: safe center;
+      column-gap: var(--col-gap);
+      row-gap: 14px;
+      padding: 12px 20px 16px;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: subgrid;
+      align-items: center;
+      min-height: 0;
+      padding: 0 0 6px;
+      border-bottom: 0;
+    }
+    .status {
+      display: contents;
+    }
+    .round {
+      grid-column: 1;
+      justify-self: start;
+      font: 400 24px/1.1 var(--display);
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--ink);
+    }
+    .what {
+      grid-column: 2;
+      justify-self: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-align: center;
+    }
+    .word {
+      font-size: 42px;
+    }
+    .end {
+      grid-column: 3;
+      justify-self: end;
     }
     .side {
       display: block;
       grid-area: side;
-      min-height: 0;
+      contain: size;
+    }
+    .panel,
+    .talk {
+      background: var(--card);
+      border: 2px solid var(--ink);
+      border-radius: var(--hand);
+      box-shadow: var(--shadow);
+    }
+    .panel {
+      max-height: 100%;
       overflow-y: auto;
-      padding-top: 8px;
+      padding: 8px;
     }
     .strip {
       display: none;
     }
+    .center {
+      gap: 12px;
+    }
+    .sheet-box {
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+    }
     .talk {
       display: flex;
       flex-direction: column;
-      padding-top: 8px;
-    }
-    .sheet-box {
-      --reserve: 260px;
-      margin-top: 16px;
-    }
-    .word {
-      font-size: 32px;
+      contain: size;
+      padding: 8px;
+      border-radius: var(--hand-2);
     }
   }
 </style>

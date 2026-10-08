@@ -29,7 +29,9 @@ afternoon meeting, mostly played on a video call. Live at
 - **Drawing:** a pen in five sizes, 24 colours, an eraser, a fill, undo and clear (held, so a stray
   tap never wipes a drawing); on a keyboard B, E, F, 1–5 and Ctrl/Cmd+Z. Drawing with a finger on a
   phone works: the canvas takes the width, never scrolls the page, and the keyboard for guessing never
-  covers it.
+  covers it. On a wide screen the turn is one table in the middle: the players, the canvas and the
+  chat side by side, the round, the word (or its blanks, a new hint letter popping on the
+  highlighter) and the clock in a row above, the tools in one compact row under the canvas.
 - **Ink that feels live:** the drawer's page draws at once and sends what it drew every ~50 ms; the
   others play it back on the drawer's own timing, so a line grows instead of appearing in chunks. A
   page that arrives late gets the whole drawing at once.
