@@ -156,7 +156,7 @@
       <span class="url">{link.replace(/^https?:\/\//, '')}</span>
       <div class="links">
         <button class="btn small" type="button" onclick={copy}>{copied ? t('copied') : t('copyLink')}</button>
-        <a class="btn small quiet" href="/{view.code}/screen" target="_blank" rel="noopener" title={t('bigScreenHint')}>{t('bigScreen')}</a>
+        <a class="btn small quiet screen-link" href="/{view.code}/screen" target="_blank" rel="noopener" title={t('bigScreenHint')}>{t('bigScreen')}</a>
       </div>
     </div>
     <div class="qr"><Qr url={link} /></div>
@@ -431,6 +431,13 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 8px;
+  }
+  /* A phone is never the big screen (and the big screen looks broken on one): no link there, upright
+     or sideways. Tablets and laptops keep it. */
+  @media (max-width: 699px), (max-height: 499px) {
+    .screen-link {
+      display: none;
+    }
   }
   .qr {
     flex: none;
