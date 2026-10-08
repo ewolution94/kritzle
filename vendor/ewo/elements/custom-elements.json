@@ -227,6 +227,34 @@
             },
             {
               "kind": "method",
+              "name": "#press",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "button",
+                  "type": {
+                    "text": "HTMLButtonElement"
+                  }
+                }
+              ],
+              "description": "A pressed look from pointerdown until pointerup, shown for at least 120ms so a quick tap is seen."
+            },
+            {
+              "kind": "method",
+              "name": "#bump",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "delta",
+                  "type": {
+                    "text": "number"
+                  }
+                }
+              ],
+              "description": "The emblem answers a step: a small nudge towards the arrow, and back."
+            },
+            {
+              "kind": "method",
               "name": "#set",
               "privacy": "private",
               "parameters": [

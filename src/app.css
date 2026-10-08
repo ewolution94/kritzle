@@ -61,6 +61,14 @@ html {
   overflow-x: clip;
 }
 
+/* Quick taps on controls (a setting's chips, the maker's arrows, the colours) never zoom the page;
+   pinching still does. Two taps on a chip zoomed Safari to 1.6×, and the sticky bar stayed on the
+   layout viewport, over the content and cut off at the right, so it looked stuck (2026-10-08). On
+   the controls themselves: Safari ignores it on <html> once <html> has an overflow (ours clips x). */
+:where(button, a, label, summary, input, select, textarea, [role='button'], [role='radio']) {
+  touch-action: manipulation;
+}
+
 body {
   background: transparent;
   color: var(--ink);

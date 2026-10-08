@@ -12,7 +12,9 @@ var t = e`
   :host([hidden]) { display: none !important; }
   *, *::before, *::after { box-sizing: inherit; }
   :focus-visible { outline: var(--ewo-focus); outline-offset: 2px; }
-  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+  /* manipulation: no double-tap zoom on a control tapped twice quickly (iOS zoomed the page on the
+     emblem maker's arrows, 2026-10-08); panning and pinch zoom still work. */
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; }
 `, n = class extends HTMLElement {
 	static styles = [];
 	root;

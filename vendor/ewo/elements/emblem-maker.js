@@ -51,7 +51,10 @@ var f = {
   @media (hover: hover) {
     .arrow:hover { background: var(--ewo-fill-2); }
   }
-  .arrow:active { transform: scale(0.92); }
+  /* Pressed: from pointerdown, held at least a moment, because iOS shows :active on no quick tap. */
+  .arrow:active, .arrow.pressed { transform: scale(0.9); background: var(--ewo-fill-2); }
+  .arrow, .dice { -webkit-tap-highlight-color: transparent; transition: transform 90ms var(--ewo-ease), background var(--ewo-dur-1) var(--ewo-ease); }
+  .dice:active, .dice.pressed { transform: scale(0.95); background: var(--ewo-fill-2); }
   .arrow svg, .dice svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   .stage {
     position: relative;
@@ -111,6 +114,8 @@ var f = {
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
     .hop, .rolling svg { animation: none; }
+    /* Still a visible press, without the movement. */
+    .arrow.pressed, .arrow:active, .dice.pressed, .dice:active { transform: none; }
   }
 `, m = (e) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${e}"/></svg>`, h = "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3.5\"/><circle cx=\"9\" cy=\"9\" r=\"1.2\"/><circle cx=\"15\" cy=\"15\" r=\"1.2\"/><circle cx=\"15\" cy=\"9\" r=\"1.2\"/><circle cx=\"9\" cy=\"15\" r=\"1.2\"/><circle cx=\"12\" cy=\"12\" r=\"1.2\"/></svg>", g = class extends e {
 	static styles = [p];
@@ -157,15 +162,16 @@ var f = {
 		this.root.innerHTML = `<div class="maker"><div class="col">${r("prev", "M15 5l-7 7 7 7")}</div><div class="stage" part="stage"><ewo-emblem theme="${this.theme}" value="${this.value.join(",")}" boil></ewo-emblem><span class="tag" part="tag" aria-hidden="true"></span></div><div class="col">${r("next", "M9 5l7 7-7 7")}</div></div><p class="legend" part="legend">${n.map((e) => e.name).join(" · ")}</p><button class="dice" part="dice" type="button">${h}<span>${t.roll}</span></button><p class="sr" aria-live="polite"></p>`, this.#n().setAttribute("initial", this.getAttribute("initial") ?? "");
 		for (let e of this.root.querySelectorAll(".arrow")) e.addEventListener("click", () => this.#i(Number(e.dataset.part), Number(e.dataset.step)));
 		this.root.querySelector(".dice").addEventListener("click", () => this.#a());
+		for (let e of this.root.querySelectorAll(".arrow, .dice")) this.#o(e);
 	}
 	#i(e, t) {
 		let n = [...this.value], r = s(this.theme)[e];
-		n[e] = (n[e] + t + r) % r, this.#o(n);
+		n[e] = (n[e] + t + r) % r, this.#c(n), this.#s(t);
 		let a = o(this.theme, i())[e];
-		this.#s(`${a.name} · ${a.options[n[e]]}`);
+		this.#l(`${a.name} · ${a.options[n[e]]}`);
 	}
 	#a() {
-		if (this.#o(d(this.theme)), !a()) {
+		if (this.#c(d(this.theme)), !a()) {
 			let e = this.#n();
 			e.classList.remove("hop");
 			let t = this.root.querySelector(".dice");
@@ -173,12 +179,35 @@ var f = {
 				e.classList.add("hop"), t.classList.add("rolling");
 			});
 		}
-		this.#s(f[i()].rolled);
+		this.#l(f[i()].rolled);
 	}
 	#o(e) {
-		this.setAttribute("value", e.join(",")), this.emit("change", { value: e });
+		let t = 0, n = 0, r = () => {
+			clearTimeout(n), n = window.setTimeout(() => e.classList.remove("pressed"), Math.max(0, 120 - (performance.now() - t)));
+		};
+		e.addEventListener("pointerdown", () => {
+			clearTimeout(n), t = performance.now(), e.classList.add("pressed");
+		});
+		for (let t of [
+			"pointerup",
+			"pointercancel",
+			"pointerleave"
+		]) e.addEventListener(t, r);
 	}
 	#s(e) {
+		a() || this.#n().animate([
+			{ transform: "none" },
+			{ transform: `translateX(${e * 4}px) scale(1.04)` },
+			{ transform: "none" }
+		], {
+			duration: 220,
+			easing: "cubic-bezier(0.3, 1.4, 0.5, 1)"
+		});
+	}
+	#c(e) {
+		this.setAttribute("value", e.join(",")), this.emit("change", { value: e });
+	}
+	#l(e) {
 		let t = this.root.querySelector(".tag"), n = this.root.querySelector(".sr");
 		t.textContent = e, n.textContent = e, t.classList.add("on"), clearTimeout(this.#t), this.#t = window.setTimeout(() => t.classList.remove("on"), 1100);
 	}
