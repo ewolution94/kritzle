@@ -43,6 +43,11 @@ var s = t`
   :host([theme='doodle'][ring]) { box-shadow: 0 0 0 2px var(--_ink); }
   :host([theme='doodle']:not([crown])) .frame { overflow: hidden; border-radius: 50%; }
 
+  /* The agent's bust is a round photo on paper, cropped by its frame. */
+  :host([theme='agent']) { border-radius: 50%; background: var(--ewo-emblem-paper, #ffffff); }
+  :host([theme='agent'][ring]) { box-shadow: 0 0 0 2px var(--_ink); }
+  :host([theme='agent']) .frame { overflow: hidden; border-radius: 50%; }
+
   /* The boil: three redraws stepped in turn, like a cartoon held still (only themes that redraw). */
   .boil:nth-child(1) { animation: boil 0.42s steps(1) infinite; }
   .boil:nth-child(2) { animation: boil 0.42s -0.28s steps(1) infinite; }

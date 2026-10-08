@@ -1,46 +1,48 @@
-import { doodle as e } from "./emblem-doodle.js";
-import { heraldry as t, token as n } from "./emblem-heraldry.js";
-import { tag as r } from "./emblem-tag.js";
+import { agent as e } from "./emblem-agent.js";
+import { doodle as t } from "./emblem-doodle.js";
+import { heraldry as n, token as r } from "./emblem-heraldry.js";
+import { tag as i } from "./emblem-tag.js";
 //#region packages/elements/src/emblem-core.ts
-var i = {
-	heraldry: t,
-	doodle: e,
-	token: n,
-	tag: r
+var a = {
+	heraldry: n,
+	doodle: t,
+	token: r,
+	tag: i,
+	agent: e
 };
-function a(e) {
-	return i[e ?? ""] ?? t;
-}
 function o(e) {
-	return a(e).parts.map((e) => e.options.length);
+	return a[e ?? ""] ?? n;
 }
-function s(e, t) {
-	let n = o(e);
+function s(e) {
+	return o(e).parts.map((e) => e.options.length);
+}
+function c(e, t) {
+	let n = s(e);
 	return Array.isArray(t) && t.length === n.length && t.every((e, t) => Number.isInteger(e) && e >= 0 && e < n[t]);
 }
-function c(e, t = Math.random) {
-	return o(e).map((e) => Math.floor(t() * e));
+function l(e, t = Math.random) {
+	return s(e).map((e) => Math.floor(t() * e));
 }
-function l(e, t, n = Math.random) {
-	return s(e, t) ? [...t] : c(e, n);
+function u(e, t, n = Math.random) {
+	return c(e, t) ? [...t] : l(e, n);
 }
-function u(e, t) {
-	return a(e).fromSeed(t >>> 0);
+function d(e, t) {
+	return o(e).fromSeed(t >>> 0);
 }
-function d(e) {
+function f(e) {
 	if (!e) return null;
 	let t = e.split(",").map((e) => Number(e.trim()));
 	return t.every(Number.isInteger) ? t : null;
 }
-function f(e, t, n = {}) {
-	let r = a(e);
-	return r.svg(s(r.id, t) ? t : r.parts.map(() => 0), n);
+function p(e, t, n = {}) {
+	let r = o(e);
+	return r.svg(c(r.id, t) ? t : r.parts.map(() => 0), n);
 }
-function p(e, t) {
-	return a(e).parts.map((e) => ({
+function m(e, t) {
+	return o(e).parts.map((e) => ({
 		name: e.name[t],
 		options: e.options.map((e) => e[t])
 	}));
 }
 //#endregion
-export { i as THEMES, l as cleanEmblem, u as emblemFromSeed, p as emblemNames, o as emblemRanges, f as emblemSvg, a as emblemTheme, s as isEmblem, d as parseEmblem, c as randomEmblem };
+export { a as THEMES, u as cleanEmblem, d as emblemFromSeed, m as emblemNames, s as emblemRanges, p as emblemSvg, o as emblemTheme, c as isEmblem, f as parseEmblem, l as randomEmblem };

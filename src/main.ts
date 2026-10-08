@@ -10,6 +10,11 @@ import '../vendor/ewo/elements/emblem-maker.js';
 
 import { mount } from 'svelte';
 import App from './App.svelte';
+// Every tap answers on a phone, the games' lively way: a deep press and a bounce on release
+// (Folio's pressFeedback, development/plans/mobile-touch.md; Schätzle is the games' pilot).
+import { pressFeedback } from '../vendor/ewo/elements/press.js';
+
+pressFeedback({ preset: 'lively' });
 
 function start() {
   mount(App, { target: document.getElementById('app')! });

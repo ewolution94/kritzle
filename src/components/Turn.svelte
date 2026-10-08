@@ -555,8 +555,11 @@
     -webkit-tap-highlight-color: transparent;
     transition: transform 0.1s;
   }
-  .react:active {
-    transform: scale(1.25);
+  /* For the mouse; a finger gets Folio's pressFeedback (main.ts). */
+  @media (hover: hover) and (pointer: fine) {
+    .react:active {
+      transform: scale(1.25);
+    }
   }
   .likes {
     display: flex;

@@ -290,7 +290,7 @@
             {
               "name": "theme",
               "type": {
-                "text": "'heraldry' | 'doodle' | 'token' | 'tag'"
+                "text": "'heraldry' | 'doodle' | 'token' | 'tag' | 'agent'"
               },
               "description": "Which generator (default heraldry)."
             },
@@ -447,7 +447,7 @@
             {
               "name": "theme",
               "type": {
-                "text": "'heraldry' | 'doodle' | 'token' | 'tag'"
+                "text": "'heraldry' | 'doodle' | 'token' | 'tag' | 'agent'"
               },
               "description": "Which generator draws it (default heraldry)."
             },
@@ -470,7 +470,7 @@
               "type": {
                 "text": "'' | 'happy'"
               },
-              "description": "Doodle: laughing eyes and mouth."
+              "description": "Doodle: laughing eyes and mouth; agent: closed eyes and a smile."
             },
             {
               "name": "crown",
@@ -511,7 +511,7 @@
               "type": {
                 "text": "boolean"
               },
-              "description": "Doodle: an ink ring around the face.",
+              "description": "Doodle, agent: an ink ring around the face.",
               "name": "ring"
             }
           ],

@@ -33,7 +33,7 @@ export interface EmblemTheme {
     fromSeed(seed: number): number[];
 }
 export declare const THEMES: Record<string, EmblemTheme>;
-export type EmblemThemeId = 'heraldry' | 'doodle' | 'token' | 'tag';
+export type EmblemThemeId = 'heraldry' | 'doodle' | 'token' | 'tag' | 'agent';
 export declare function emblemTheme(id: string | null | undefined): EmblemTheme;
 /** How many choices each part has. */
 export declare function emblemRanges(theme: string): number[];

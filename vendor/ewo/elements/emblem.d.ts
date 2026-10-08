@@ -3,14 +3,14 @@ import { EwoElement } from './base';
  * A player's emblem: Vollmond's shield, Kritzle's doodled face, or a coin, from a few numbers.
  *
  * @tagname ewo-emblem
- * @attr {'heraldry' | 'doodle' | 'token' | 'tag'} theme - Which generator draws it (default heraldry).
+ * @attr {'heraldry' | 'doodle' | 'token' | 'tag' | 'agent'} theme - Which generator draws it (default heraldry).
  * @attr {string} initial - Tag: the player's name; its first letter is figure 0.
  * @attr {string} value - The numbers, one per part, comma-separated ("3,7"). The `value` property also takes an array.
  * @attr {string} size - A number of pixels or any CSS length (default 48px).
- * @attr {'' | 'happy'} mood - Doodle: laughing eyes and mouth.
+ * @attr {'' | 'happy'} mood - Doodle: laughing eyes and mouth; agent: closed eyes and a smile.
  * @attr {boolean} crown - Doodle: the winner's crown.
  * @attr {boolean} boil - Doodle: redraws itself three ways in turn (still under reduced motion).
- * @attr {boolean} ring - Doodle: an ink ring around the face.
+ * @attr {boolean} ring - Doodle, agent: an ink ring around the face.
  * @attr {boolean} dead - Heraldry and token: greyed and struck through.
  * @attr {string} label - Accessible name; without it the emblem is decoration.
  * @cssprop --ewo-emblem-1 - Heraldry's dark ink.

@@ -48,7 +48,7 @@ declare module 'react' {
         onchange?: Handler<{ checked: boolean }>;
       };
       'ewo-emblem': Base<EwoEmblem> & {
-        theme?: 'heraldry' | 'doodle' | 'token' | 'tag';
+        theme?: 'heraldry' | 'doodle' | 'token' | 'tag' | 'agent';
         value?: number[] | string;
         size?: number | string;
         mood?: '' | 'happy';
@@ -60,7 +60,7 @@ declare module 'react' {
         initial?: string;
       };
       'ewo-emblem-maker': Base<EwoEmblemMaker> & {
-        theme?: 'heraldry' | 'doodle' | 'token' | 'tag';
+        theme?: 'heraldry' | 'doodle' | 'token' | 'tag' | 'agent';
         value?: number[] | string;
         initial?: string;
         onchange?: Handler<{ value: number[] }>;

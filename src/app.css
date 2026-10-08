@@ -164,12 +164,16 @@ button {
   box-shadow: 2px 3px 0 var(--ink);
   font: 400 24px / 1 var(--display);
 }
-.btn.primary:active:not(:disabled) {
-  transform: translate(2px, 3px);
-  box-shadow: none;
-}
-.btn:not(.primary):active:not(:disabled) {
-  transform: scale(0.97);
+/* :active presses are for the mouse; a finger gets Folio's pressFeedback (main.ts), which iOS shows
+   on every tap and :active doesn't. Both at once would press a button twice. */
+@media (hover: hover) and (pointer: fine) {
+  .btn.primary:active:not(:disabled) {
+    transform: translate(2px, 3px);
+    box-shadow: none;
+  }
+  .btn:not(.primary):active:not(:disabled) {
+    transform: scale(0.97);
+  }
 }
 @media (hover: hover) {
   .btn:not(.primary):hover:not(:disabled) {
