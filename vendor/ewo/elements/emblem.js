@@ -48,18 +48,19 @@ var s = t`
   :host([theme='agent'][ring]) { box-shadow: 0 0 0 2px var(--_ink); }
   :host([theme='agent']) .frame { overflow: hidden; border-radius: 50%; }
 
-  /* The boil: three redraws stepped in turn, like a cartoon held still (only themes that redraw). */
-  .boil:nth-child(1) { animation: boil 0.42s steps(1) infinite; }
-  .boil:nth-child(2) { animation: boil 0.42s -0.28s steps(1) infinite; }
-  .boil:nth-child(3) { animation: boil 0.42s -0.14s steps(1) infinite; }
-  @keyframes boil {
-    0% { opacity: 1; }
-    33.33% { opacity: 0; }
-    100% { opacity: 0; }
-  }
+  /* The boil: the redraws side by side on one strip, stepped past a window one frame wide, like a
+     cartoon held still (only themes that redraw). One animation, so a frame is never blank or doubled:
+     three stacked frames with their own opacity animations met at the same instant, and a browser
+     frame now and then showed none of them, the face blinking out (Kritzle, 2026-10-09). Keep it one
+     strip of frames with one stepped animation: don't split it back into stacked frames. The window
+     clips sideways only, so a crown can still rise above it. */
+  .reel { position: absolute; inset: 0; overflow-x: clip; }
+  :host([theme='doodle']:not([crown])) .reel { overflow: hidden; border-radius: 50%; }
+  .strip { display: flex; width: calc(var(--_frames) * 100%); height: 100%; animation: boil calc(var(--_frames) * 0.14s) steps(var(--_frames)) infinite; }
+  .strip > .frame { position: relative; inset: auto; flex: 0 0 calc(100% / var(--_frames)); height: 100%; }
+  @keyframes boil { to { translate: -100% 0; } }
   @media (prefers-reduced-motion: reduce) {
-    .boil { animation: none !important; }
-    .boil:nth-child(n + 2) { opacity: 0; }
+    .strip { animation: none; }
   }
 `, c = class extends e {
 	static styles = [s];
@@ -75,13 +76,16 @@ var s = t`
 		"initial"
 	];
 	#e = this.attachInternals();
+	#t = [];
 	connectedCallback() {
-		this.#r();
+		this.#i();
 	}
-	attributeChangedCallback(e) {
-		if (e === "size") return this.#t();
-		if (e === "label") return this.#n();
-		this.isConnected && this.#r();
+	attributeChangedCallback(e, t, n) {
+		if (t !== n) {
+			if (e === "size") return this.#n();
+			if (e === "label") return this.#r();
+			this.isConnected && this.#i();
+		}
 	}
 	get value() {
 		return o(this.getAttribute("value")) ?? [];
@@ -119,27 +123,30 @@ var s = t`
 	set crown(e) {
 		this.flag("crown", !!e);
 	}
-	#t() {
+	#n() {
 		let e = this.getAttribute("size");
 		e ? this.style.setProperty("--_size", /^\d+(\.\d+)?$/.test(e) ? `${e}px` : e) : this.style.removeProperty("--_size");
 	}
-	#n() {
+	#r() {
 		let e = this.getAttribute("label");
 		this.#e.role = e ? "img" : null, this.#e.ariaLabel = e;
 	}
-	#r() {
-		this.#t(), this.#n();
+	#i() {
+		this.#n(), this.#r();
 		let e = a(this.getAttribute("theme")), t = this.hasAttribute("boil") ? e.frames ?? 1 : 1, n = {
 			mood: this.getAttribute("mood") ?? "",
 			crown: this.hasAttribute("crown"),
 			dead: this.hasAttribute("dead"),
 			initial: this.getAttribute("initial") ?? ""
-		}, r = "", o = t > 1 ? "frame boil" : "frame";
-		for (let a = 0; a < t; a++) r += `<span class="${o}">${i(e.id, this.value, {
+		}, r = Array.from({ length: t }, (t, r) => i(e.id, this.value, {
 			...n,
-			frame: a
-		})}</span>`;
-		this.root.innerHTML = r;
+			frame: r
+		}));
+		if (r.length === this.#t.length && r.every((e, t) => e === this.#t[t])) return;
+		let o = t > 1 ? this.root.querySelector(".strip") : null;
+		o && o.childElementCount === t ? r.forEach((e, t) => {
+			e !== this.#t[t] && (o.children[t].innerHTML = e);
+		}) : t > 1 ? this.root.innerHTML = `<span class="reel"><span class="strip" style="--_frames:${t}">${r.map((e) => `<span class="frame">${e}</span>`).join("")}</span></span>` : this.root.innerHTML = `<span class="frame">${r[0]}</span>`, this.#t = r;
 	}
 };
 n("ewo-emblem", c);

@@ -27,7 +27,7 @@ export declare class EwoEmblem extends EwoElement {
     static styles: CSSStyleSheet[];
     static observedAttributes: string[];
     connectedCallback(): void;
-    attributeChangedCallback(name: string): void;
+    attributeChangedCallback(name: string, before: string | null, after: string | null): void;
     get value(): number[];
     set value(v: number[] | string);
     get theme(): string;
