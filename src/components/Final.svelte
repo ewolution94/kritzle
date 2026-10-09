@@ -10,6 +10,7 @@
   import { timelapseGif } from '../lib/gif';
   import { duration, firstInk, H, paintAll, render, toActions, W, type Action } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
+  import { actAt } from '../lib/waits';
   import Avatar from './Avatar.svelte';
 
   let { room, view, onleave }: { room: Room; view: View; onleave: () => void } = $props();
@@ -190,10 +191,10 @@
     await save(out, `kritzle-${view.code.toLowerCase()}.png`);
   }
 
-  async function again() {
+  async function again(from: Event) {
     error = '';
     try {
-      await room.act('rematch');
+      await actAt(room, 'rematch', undefined, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     }

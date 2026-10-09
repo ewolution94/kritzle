@@ -35,6 +35,13 @@ afternoon meeting, mostly played on a video call. Live at
 - **Ink that feels live:** the drawer's page draws at once and sends what it drew every ~50 ms; the
   others play it back on the drawer's own timing, so a line grows instead of appearing in chunks. A
   page that arrives late gets the whole drawing at once.
+- **Waiting, said where you tapped:** a move that waits for the server (New game, Play, Add a bot,
+  Start, teams, a vote …) keeps its button pressed and locked until the answer, then springs back,
+  so a quick answer feels like an ordinary tap. A slower one shows a scribble in the button after
+  150 ms, says what it's doing after 1.2 s ("Spiel startet …"), "Dauert länger …" after 6 s, and at
+  12 s gives up with "Nochmal" right there; a retried New game or join never makes a second room or
+  seat. A pill under the bar says when the room's connection is lost (not for a blip) and when it's
+  back. Folio's `track()` and `<ewo-connection>`, `development/plans/waiting-states.md`.
 - **Reactions and likes:** six emoji float up over everyone's canvas; a like or dislike per drawing
   feeds the end's awards.
 - **The end:** the podium, awards (most liked, fastest guess, so close, the word nobody got, the

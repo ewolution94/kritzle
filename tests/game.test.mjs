@@ -267,3 +267,22 @@ test('a game nobody is watching ends after two minutes, so bots never play on fo
   wait(60_000);
   assert.equal(screen.view.phase, 'final');
 });
+
+test('a retried "New game" or join with the same key gets the same seat, not a second one', () => {
+  const { clock, games } = setup();
+  const key = 'a1b2c3d4-e5f6';
+  const first = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0], key });
+  const again = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0], key });
+  assert.deepEqual(again, first, 'the same room and seat');
+  const other = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0], key: 'another-key-1' });
+  assert.notEqual(other.code, first.code, 'a new tap is a new room');
+  const ben = games.join(first.code, { name: 'Ben', key: 'ben-key-0001' });
+  assert.deepEqual(games.join(first.code, { name: 'Ben', key: 'ben-key-0001' }), ben);
+  const page = watch(games, first.code, first.player);
+  assert.equal(page.view.players.length, 2, 'Ben is seated once');
+  // After a minute the key is forgotten: the same key is a new request again.
+  clock.advance(61_000);
+  assert.notEqual(games.create({ name: 'Anna', key }).code, first.code);
+  // Keys that don't look like keys are ignored.
+  assert.notEqual(games.create({ name: 'Anna', key: 'x' }).code, games.create({ name: 'Anna', key: 'x' }).code);
+});

@@ -11,6 +11,7 @@
   import { errorText, t, type Key } from '../lib/i18n.svelte';
   import { PALETTE } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
+  import { actAt } from '../lib/waits';
   import Avatar from './Avatar.svelte';
   import Canvas from './Canvas.svelte';
   import Chat from './Chat.svelte';
@@ -64,10 +65,11 @@
     };
   });
 
-  async function act(action: string, body?: unknown) {
+  /** A move; with the tapped control, the wait shows there (src/lib/waits.ts). */
+  async function act(action: string, body?: unknown, from?: Event) {
     error = '';
     try {
-      await room.act(action, body);
+      await actAt(room, action, body, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
       setTimeout(() => (error = ''), 2500);
@@ -83,7 +85,7 @@
 
   function unmask(event: SubmitEvent) {
     event.preventDefault();
-    if (guess.trim()) void act('unmask', { text: guess.trim() });
+    if (guess.trim()) void act('unmask', { text: guess.trim() }, event);
   }
 
   function focusIn(event: FocusEvent) {
@@ -115,7 +117,7 @@
     </div>
     <div class="end">
       {#if isHost && turn.phase !== 'reveal'}
-        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={() => act('skip')}>
+        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={(e) => act('skip', undefined, e)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" /><path d="M18 5v14" /></svg>
         </button>
       {/if}
@@ -170,7 +172,7 @@
         <p class="hint">{t('voteHint')}</p>
         <div class="choices">
           {#each view.players.filter((p) => p.id !== view.me) as p (p.id)}
-            <button class="chip person" type="button" aria-pressed={turn.myVote === p.id} onclick={() => act('vote', { player: p.id })}>
+            <button class="chip person" type="button" aria-pressed={turn.myVote === p.id} onclick={(e) => act('vote', { player: p.id }, e)}>
               <Avatar avatar={p.avatar} size={26} ring={false} />
               {p.name}
               {#if turn.voted?.includes(p.id)}<span class="tick" aria-label={t('voted')}>✓</span>{/if}
@@ -207,7 +209,6 @@
     <Chat {room} {view} compact />
   </section>
 
-  {#if !room.live}<p class="offline">{t('reconnecting')}</p>{/if}
 </div>
 
 <Settings open={settingsOpen} onclose={() => (settingsOpen = false)} />
@@ -448,18 +449,6 @@
   .error {
     margin: 0;
     text-align: center;
-  }
-  .offline {
-    position: absolute;
-    left: 50%;
-    bottom: 12px;
-    transform: translateX(-50%);
-    margin: 0;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: var(--ink);
-    color: var(--paper);
-    font-size: 13px;
   }
   /* A wide screen: one table in the middle, as in a classic turn (Turn.svelte). */
   @media (min-width: 900px) {

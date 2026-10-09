@@ -104,6 +104,168 @@
     },
     {
       "kind": "javascript-module",
+      "path": "connection.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "The connection, in a word, when it's worth one.",
+          "name": "EwoConnection",
+          "cssProperties": [
+            {
+              "description": "Where the pill sits (default: 12 px below the safe area).",
+              "name": "--ewo-connection-top"
+            },
+            {
+              "description": "The pill's background (default --ewo-fg).",
+              "name": "--ewo-connection-bg"
+            },
+            {
+              "description": "Its text (default --ewo-bg).",
+              "name": "--ewo-connection-fg"
+            },
+            {
+              "description": "Its font family.",
+              "name": "--ewo-connection-font"
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "pill"
+            }
+          ],
+          "slots": [
+            {
+              "description": "A game's working mark (three dots by default).",
+              "name": "mark"
+            }
+          ],
+          "members": [
+            {
+              "kind": "field",
+              "name": "styles",
+              "type": {
+                "text": "array"
+              },
+              "static": true,
+              "default": "[styles]"
+            },
+            {
+              "kind": "field",
+              "name": "#timer",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#text",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLElement"
+              },
+              "default": "this.root.querySelector('.text')!"
+            },
+            {
+              "kind": "field",
+              "name": "#stop",
+              "privacy": "private",
+              "type": {
+                "text": "() => void | undefined"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "state",
+              "type": {
+                "text": "ConnectionState"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#update",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#show",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "what",
+                  "type": {
+                    "text": "'connecting' | 'reconnecting' | 'back'"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#hide",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "#words",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "innerHTML"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "state",
+              "type": {
+                "text": "'connecting' | 'reconnecting' | 'online'"
+              },
+              "description": "What the connection is doing (default online)."
+            },
+            {
+              "name": "connecting-label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Overrides \"Connecting …\"."
+            },
+            {
+              "name": "reconnecting-label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Overrides \"Reconnecting …\"."
+            },
+            {
+              "name": "back-label",
+              "type": {
+                "text": "string"
+              },
+              "description": "Overrides \"Connected again\"."
+            }
+          ],
+          "superclass": {
+            "name": "EwoElement",
+            "module": "/packages/elements/src/base"
+          },
+          "tagName": "ewo-connection",
+          "customElement": true
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "EwoConnection",
+          "declaration": {
+            "name": "EwoConnection",
+            "module": "connection.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "emblem-maker.js",
       "declarations": [
         {
@@ -2347,6 +2509,162 @@
           "declaration": {
             "name": "toast",
             "module": "toaster.js"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "waiting.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "Thrown when the 12 s are up; `code` is `timeout` for an app's error words.",
+          "name": "WaitTimeout",
+          "members": [
+            {
+              "kind": "field",
+              "name": "code",
+              "type": {
+                "text": "string"
+              },
+              "readonly": true,
+              "default": "'timeout'"
+            },
+            {
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "string"
+              },
+              "default": "'TimeoutError'"
+            }
+          ],
+          "superclass": {
+            "name": "Error",
+            "module": "waiting.js"
+          }
+        },
+        {
+          "kind": "function",
+          "name": "configureWaiting",
+          "parameters": [
+            {
+              "name": "options",
+              "type": {
+                "text": "{ mark?: string | (() => Node) }"
+              }
+            }
+          ],
+          "description": "A game's own working mark: SVG or HTML markup, or a function that builds it."
+        },
+        {
+          "kind": "function",
+          "name": "isRetryable",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "parameters": [
+            {
+              "name": "error",
+              "type": {
+                "text": "unknown"
+              }
+            }
+          ],
+          "description": "Whether an error deserves \"Try again\" rather than a shake."
+        },
+        {
+          "kind": "function",
+          "name": "track",
+          "return": {
+            "type": {
+              "text": "Promise<T | undefined>"
+            }
+          },
+          "parameters": [
+            {
+              "name": "control",
+              "type": {
+                "text": "Element | null | undefined"
+              }
+            },
+            {
+              "name": "action",
+              "type": {
+                "text": "(signal: AbortSignal) => Promise<T>"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "WaitOptions"
+              }
+            }
+          ],
+          "description": "Runs `action` with the wait shown at `control` (any element; null runs it without a control).\nResolves with the action's result, or `undefined` when the control was already waiting (a second\ntap); rejects with the action's error or a WaitTimeout."
+        },
+        {
+          "kind": "variable",
+          "name": "overlay"
+        },
+        {
+          "kind": "variable",
+          "name": "retry"
+        },
+        {
+          "kind": "variable",
+          "name": "text"
+        },
+        {
+          "kind": "variable",
+          "name": "WAIT_CSS",
+          "default": "` @layer ewo-wait { /* While the overlay shows, the control's own label steps aside (text and children), keeping its size. */ [data-wait] { color: transparent !important; } [data-wait] > :not(.ewo-wait) { visibility: hidden; } .ewo-wait { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 0.45em; padding: 0 0.6em; border-radius: inherit; color: var(--ewo-wait-fg, currentColor); font: inherit; line-height: 1.1; white-space: nowrap; pointer-events: none; animation: ewo-wait-in 140ms ease-out; } .ewo-wait-text { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; } .ewo-wait-text:empty { display: none; } /* Words too long for the control: a small bubble just under it. */ .ewo-wait[data-bubble] .ewo-wait-text { position: absolute; top: calc(100% + 6px); left: 50%; z-index: 5; max-width: none; translate: -50% 0; padding: 4px 10px; border-radius: 999px; background: var(--ewo-wait-bubble-bg, var(--ewo-fg, #222)); color: var(--ewo-wait-bubble-fg, var(--ewo-bg, #fff)); font-size: 12px; font-weight: 600; line-height: 1.3; letter-spacing: 0; text-transform: none; box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.5); animation: ewo-wait-in 140ms ease-out; } .ewo-wait-retry { display: none; width: 1.1em; height: 1.1em; flex: none; } .ewo-wait-retry svg { display: block; width: 100%; height: 100%; } [data-wait='failed'] .ewo-wait-retry { display: block; } .ewo-wait-mark { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.2em; height: 1em; } .ewo-wait-mark > span { display: inline-flex; align-items: center; gap: 0.2em; } .ewo-wait-mark i { width: 0.3em; height: 0.3em; border-radius: 50%; background: currentColor; animation: ewo-wait-dot 900ms ease-in-out infinite; } .ewo-wait-mark i:nth-child(2) { animation-delay: 150ms; } .ewo-wait-mark i:nth-child(3) { animation-delay: 300ms; } [data-wait='failed'] .ewo-wait-mark { display: none; } [data-shake] { animation: ewo-wait-shake ${SHAKE}ms ease-in-out; } .ewo-wait-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } @keyframes ewo-wait-in { from { opacity: 0; } } @keyframes ewo-wait-dot { 0%, 80%, 100% { opacity: 0.3; scale: 0.75; } 40% { opacity: 1; scale: 1; } } @keyframes ewo-wait-shake { 20% { translate: -5px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 2px 0; } } @media (prefers-reduced-motion: reduce) { .ewo-wait-mark i { animation: none; opacity: 0.75; } [data-shake] { animation: none; } .ewo-wait { animation: none; } } } `",
+          "description": "The look, layered so an app's own rules win; `!important` only where a control's colour must yield."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "WaitTimeout",
+          "declaration": {
+            "name": "WaitTimeout",
+            "module": "waiting.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "configureWaiting",
+          "declaration": {
+            "name": "configureWaiting",
+            "module": "waiting.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "isRetryable",
+          "declaration": {
+            "name": "isRetryable",
+            "module": "waiting.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "track",
+          "declaration": {
+            "name": "track",
+            "module": "waiting.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "WAIT_CSS",
+          "declaration": {
+            "name": "WAIT_CSS",
+            "module": "waiting.js"
           }
         }
       ]

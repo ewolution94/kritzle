@@ -7,15 +7,22 @@
   import type { Avatar } from '../lib/avatar';
   import { errorText, t } from '../lib/i18n.svelte';
   import { saveAvatar, savedAvatar, savedName } from '../lib/session';
+  import { newKey, waitAt } from '../lib/waits';
   import AvatarMaker from './AvatarMaker.svelte';
 
-  let { code, onjoin, onback }: { code: string; onjoin: (seat: Seat, name: string) => void; onback: () => void } = $props();
+  /** `onjoin` resolves once the room can show (its first view): the button waits for that. */
+  let {
+    code,
+    onjoin,
+    onback,
+  }: { code: string; onjoin: (seat: Seat, name: string, signal: AbortSignal) => Promise<void>; onback: () => void } = $props();
 
   let name = $state(savedName());
   let avatar: Avatar = $state(savedAvatar());
-  let busy = $state(false);
   let error = $state('');
   let missing = $state(false);
+  /** One key per join, kept for its retries, so a timed-out first try doesn't seat you twice. */
+  let key = newKey();
 
   onMount(() => {
     api.info(code).then(
@@ -39,14 +46,13 @@
       error = errorText('name');
       return;
     }
-    busy = true;
     error = '';
+    const who = name.trim();
     try {
-      onjoin(await api.join(code, name.trim(), avatar), name.trim());
+      await waitAt(event, async (signal) => onjoin(await api.join(code, who, avatar, undefined, key, signal), who, signal), t('wait_join'));
+      key = newKey();
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
-    } finally {
-      busy = false;
     }
   }
 </script>
@@ -66,7 +72,7 @@
         <span class="label">{t('yourName')}</span>
         <input class="input" bind:value={name} maxlength="16" autocomplete="nickname" placeholder={t('namePlaceholder')} />
       </label>
-      <button class="btn primary block" type="submit" disabled={busy}>{t('play')}</button>
+      <button class="btn primary block" type="submit">{t('play')}</button>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
     </form>
     <button class="btn quiet back" type="button" onclick={onback}>{t('back')}</button>

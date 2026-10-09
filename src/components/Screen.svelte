@@ -63,9 +63,13 @@
   });
 </script>
 
+{#if view?.phase !== 'gone'}
+  <ewo-connection class="connection" state={room.live ? 'online' : room.wasLive ? 'reconnecting' : 'connecting'}></ewo-connection>
+{/if}
+
 <div class="screen">
   {#if !view}
-    <p class="display big">{t('reconnecting')}</p>
+    <p class="display big">{t(room.wasLive ? 'reconnecting' : 'connecting')}</p>
   {:else if view.phase === 'gone'}
     <p class="display big">{t('gone')}</p>
   {:else if view.phase === 'lobby'}
@@ -209,6 +213,11 @@
 </div>
 
 <style>
+  .connection {
+    --ewo-connection-top: 2vh;
+    --ewo-connection-bg: var(--ink);
+    --ewo-connection-fg: var(--paper);
+  }
   .screen {
     height: 100dvh;
     overflow: hidden;

@@ -16,6 +16,7 @@
   import { MULTIPLIERS } from '../lib/words';
   import { errorText, num, t, type Key } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
+  import { actAt } from '../lib/waits';
   import Avatar from './Avatar.svelte';
   import Canvas, { type Tool } from './Canvas.svelte';
   import Chat from './Chat.svelte';
@@ -70,18 +71,19 @@
     };
   });
 
-  async function act(action: string, body?: unknown) {
+  /** A move; with the tapped control, the wait shows there (src/lib/waits.ts). */
+  async function act(action: string, body?: unknown, from?: Event) {
     error = '';
     try {
-      await room.act(action, body);
+      await actAt(room, action, body, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
       setTimeout(() => (error = ''), 2500);
     }
   }
 
-  function like(value: number) {
-    void act('like', { value: turn.like === value ? 0 : value });
+  function like(value: number, from: Event) {
+    void act('like', { value: turn.like === value ? 0 : value }, from);
   }
 
   // The keyboard is up on a touch screen: make room for it.
@@ -162,7 +164,7 @@
         </span>
       {/if}
       {#if isHost && (turn.phase === 'draw' || turn.phase === 'choose')}
-        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={() => act('skip')}>
+        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={(e) => act('skip', undefined, e)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" /><path d="M18 5v14" /></svg>
         </button>
       {/if}
@@ -200,7 +202,7 @@
             {#if isDrawer && turn.choices}
               <div class="choices">
                 {#each turn.choices as c, i (c.word)}
-                  <button class="btn choice" type="button" onclick={() => act('choose', { index: i })}>
+                  <button class="btn choice" type="button" onclick={(e) => act('choose', { index: i }, e)}>
                     <span class="display">{c.word}</span>
                     <span class="meta">{@render dots(c.difficulty)}<span class="mult">{t('multiplier', { n: num(MULTIPLIERS[c.difficulty]) })}</span></span>
                   </button>
@@ -246,10 +248,10 @@
         {/each}
         {#if !isDrawer}
           <span class="likes">
-            <button class="react thumb" type="button" aria-label={t('like')} aria-pressed={turn.like === 1} onclick={() => like(1)}>
+            <button class="react thumb" type="button" aria-label={t('like')} aria-pressed={turn.like === 1} onclick={(e) => like(1, e)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4v-9z" /><path d="M7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 012 2.3l-1.2 6A2 2 0 0117.8 20H7" /></svg>
             </button>
-            <button class="react thumb down" type="button" aria-label={t('dislike')} aria-pressed={turn.like === -1} onclick={() => like(-1)}>
+            <button class="react thumb down" type="button" aria-label={t('dislike')} aria-pressed={turn.like === -1} onclick={(e) => like(-1, e)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4v-9z" /><path d="M7 11l4-7c1.5 0 2.5 1 2.2 2.6L12.6 10H19a2 2 0 012 2.3l-1.2 6A2 2 0 0117.8 20H7" /></svg>
             </button>
           </span>
@@ -265,7 +267,6 @@
     <Chat {room} {view} compact />
   </section>
 
-  {#if !room.live}<p class="offline">{t('reconnecting')}</p>{/if}
 </div>
 
 <Settings open={settingsOpen} onclose={() => (settingsOpen = false)} />
@@ -585,18 +586,6 @@
   .error {
     margin: 0;
     text-align: center;
-  }
-  .offline {
-    position: absolute;
-    left: 50%;
-    bottom: 12px;
-    transform: translateX(-50%);
-    margin: 0;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: var(--ink);
-    color: var(--paper);
-    font-size: 13px;
   }
 
   /* A wide screen: one table in the middle. The canvas is as large as the height allows (or the

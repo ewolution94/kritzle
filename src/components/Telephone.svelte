@@ -11,6 +11,7 @@
   import { errorText, t } from '../lib/i18n.svelte';
   import type { Op } from '../lib/ink';
   import type { Room } from '../lib/room.svelte';
+  import { actAt, waitAt } from '../lib/waits';
   import Avatar from './Avatar.svelte';
   import Canvas, { type Tool } from './Canvas.svelte';
   import Clock from './Clock.svelte';
@@ -92,10 +93,11 @@
     };
   });
 
-  async function act(action: string, body?: unknown) {
+  /** A move; with the tapped control, the wait shows there (src/lib/waits.ts). */
+  async function act(action: string, body?: unknown, from?: Event) {
     error = '';
     try {
-      await room.act(action, body);
+      await actAt(room, action, body, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
       setTimeout(() => (error = ''), 2500);
@@ -104,12 +106,21 @@
 
   function send(event: SubmitEvent) {
     event.preventDefault();
-    if (text.trim()) void act('tell', { text: text.trim() });
+    if (text.trim()) void act('tell', { text: text.trim() }, event);
   }
 
-  async function finished() {
-    await room.settle();
-    void act('done');
+  /** Done drawing: the last ink goes up first, all within the button's wait. */
+  async function finished(from: Event) {
+    error = '';
+    try {
+      await waitAt(from, async (signal) => {
+        await room.settle();
+        await room.act('done', undefined, signal);
+      }, t('wait_tell'));
+    } catch (e) {
+      error = errorText(e instanceof ApiError ? e.code : 'other');
+      setTimeout(() => (error = ''), 2500);
+    }
   }
 
   function focusIn(event: FocusEvent) {
@@ -131,7 +142,7 @@
     </div>
     <div class="end">
       {#if isHost && turn.phase === 'tell'}
-        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={() => act('skip')}>
+        <button class="icon" type="button" aria-label={t('skipTurn')} title={t('skipTurn')} onclick={(e) => act('skip', undefined, e)}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l9 7-9 7z" /><path d="M18 5v14" /></svg>
         </button>
       {/if}
@@ -160,8 +171,8 @@
       </ol>
       <div class="controls">
         {#if isHost}
-          <button class="btn" type="button" onclick={() => act('prev')}>{t('back')}</button>
-          <button class="btn primary" type="button" onclick={() => act('next')}>{t('showNext')}</button>
+          <button class="btn" type="button" onclick={(e) => act('prev', undefined, e)}>{t('back')}</button>
+          <button class="btn primary" type="button" onclick={(e) => act('next', undefined, e)}>{t('showNext')}</button>
         {:else}
           <p class="hint">{t('hostShows', { name: names.get(view.host)?.name ?? '' })}</p>
         {/if}
@@ -211,7 +222,6 @@
 
   <div class="strip"><Players {view} strip /></div>
 
-  {#if !room.live}<p class="offline">{t('reconnecting')}</p>{/if}
 </div>
 
 <Settings open={settingsOpen} onclose={() => (settingsOpen = false)} />
@@ -390,18 +400,6 @@
   }
   .typing .strip {
     display: none;
-  }
-  .offline {
-    position: absolute;
-    left: 50%;
-    bottom: 12px;
-    transform: translateX(-50%);
-    margin: 0;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background: var(--ink);
-    color: var(--paper);
-    font-size: 13px;
   }
   @media (min-width: 900px) {
     .stage {

@@ -297,6 +297,48 @@ button {
   filter: none;
 }
 
+/* Waiting for the server (Folio's track(), src/lib/waits.ts): Kritzle's working mark is a line being
+   scribbled over a faint pencil track, drawn and wiped in a loop, so every frame reads as a scribble;
+   still under reduced motion. The bubble for words too long for a chip is a strip of graphite. */
+.ewo-wait-mark .scribble {
+  width: 1.75em;
+  height: 0.85em;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ewo-wait-mark .scribble .track {
+  opacity: 0.25;
+}
+.ewo-wait-mark .scribble .ink {
+  stroke-dasharray: 60;
+  animation: scribble 1.1s ease-in-out infinite;
+}
+@keyframes scribble {
+  0% {
+    stroke-dashoffset: 60;
+  }
+  55% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -60;
+  }
+}
+:root {
+  --ewo-wait-bubble-bg: var(--ink);
+  --ewo-wait-bubble-fg: var(--paper);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ewo-wait-mark .scribble .ink {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* While the page scrolls, rows slide under a resting cursor; their hover states wait until it
    stops (src/lib/scrolling.ts). Only for a mouse: touch has no hover to protect. */
 @media (hover: hover) and (pointer: fine) {

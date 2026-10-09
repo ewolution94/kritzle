@@ -10,7 +10,7 @@
 // can produce this from custom-elements.json.
 
 import type { DOMAttributes, HTMLAttributes, Key, Ref } from 'react';
-import type { EwoBadge, EwoEmblem, EwoEmblemMaker, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
+import type { EwoBadge, EwoEmblem, EwoEmblemMaker, EwoEmpty, EwoHalftone, EwoSegmented, EwoSettingsBasics, EwoSettingsButton, EwoSheet, EwoSkeleton, EwoConnection, EwoSwitch, EwoThemeToggle, EwoTicks, EwoToaster, LanguageChoice, SegmentedOption, SettingsThemeChoice, Tick } from './index';
 
 type Base<E> = Omit<HTMLAttributes<E>, 'onChange' | 'onInput' | 'onLoad' | 'onError' | 'onCancel' | 'onClose'> &
   Pick<DOMAttributes<E>, 'children'> & {
@@ -77,6 +77,7 @@ declare module 'react' {
       'ewo-skeleton': Base<EwoSkeleton> & { width?: string; height?: string; radius?: string; lines?: number };
       'ewo-ticks': Base<EwoTicks> & { ticks?: Tick[]; states?: string; label?: string; start?: string; end?: string };
       'ewo-toaster': Base<EwoToaster> & { position?: 'bottom' | 'top' };
+      'ewo-connection': Base<EwoConnection> & { state?: 'connecting' | 'reconnecting' | 'online'; 'connecting-label'?: string; 'reconnecting-label'?: string; 'back-label'?: string };
       'ewo-sheet': Base<EwoSheet> & { open?: boolean; label?: string; wide?: boolean; placement?: 'center' | 'top'; oncancel?: Handler<void>; onclose?: Handler<void> };
       'ewo-theme-toggle': Base<EwoThemeToggle> & { cycle?: boolean; 'label-light'?: string; 'label-dark'?: string };
       'ewo-settings-button': Base<EwoSettingsButton> & { label?: string; 'show-label'?: boolean };

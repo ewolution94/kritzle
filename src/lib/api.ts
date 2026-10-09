@@ -203,7 +203,11 @@ export interface Config {
   strokeSeconds: number[];
 }
 
-/** A refusal from the server ("no-room", "spoiler" …) or a network failure ("offline"). */
+/**
+ * A refusal from the server ("no-room", "spoiler" …), a network failure ("offline"), the server or
+ * Cloudflare in trouble ("busy": a 5xx without the game's own answer) or no answer in time
+ * ("timeout", Folio's track() gave up). The last three are worth "Try again" (waiting.ts).
+ */
 export class ApiError extends Error {
   constructor(
     readonly code: string,
@@ -218,29 +222,37 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(path, { ...init, cache: 'no-store' });
   } catch {
-    // Safari says "Load failed", Chrome "Failed to fetch": classify by type (learnings/ios-and-webkit.md).
-    throw new ApiError('offline');
+    // Given up on (the signal from track()), or the network: Safari says "Load failed", Chrome
+    // "Failed to fetch", so classify by type (learnings/ios-and-webkit.md).
+    throw new ApiError(init.signal?.aborted ? 'timeout' : 'offline');
   }
   if (response.status === 204) return undefined as T;
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new ApiError(body?.error ?? `http-${response.status}`, response.status);
+  if (!response.ok) {
+    // A 5xx without the game's own error is the NAS or Cloudflare (a 502, a 1033 page).
+    throw new ApiError(body?.error ?? (response.status >= 500 ? 'busy' : `http-${response.status}`), response.status);
+  }
   return body as T;
 }
 
 const withToken = (token: string): RequestInit => ({ headers: { 'x-kritzle-token': token } });
 
-const post = (body: unknown, token?: string): RequestInit => ({
+const post = (body: unknown, token?: string, signal?: AbortSignal): RequestInit => ({
   method: 'POST',
   headers: { 'content-type': 'application/json', ...(token ? { 'x-kritzle-token': token } : {}) },
   body: JSON.stringify(body ?? {}),
+  signal,
 });
 
 export const api = {
   config: () => request<Config>('/api/config'),
-  create: (name: string, avatar: Avatar) => request<Seat>('/api/rooms', post({ name, avatar })),
+  /** `key`: the same for every try of one "New game", so a retry after a timeout gets the same room. */
+  create: (name: string, avatar: Avatar, key?: string, signal?: AbortSignal) => request<Seat>('/api/rooms', post({ name, avatar, key }, undefined, signal)),
   info: (code: string) => request<{ code: string; phase: Phase; players: number; full: boolean }>(`/api/rooms/${code}`),
-  join: (code: string, name: string, avatar: Avatar | null, token?: string) => request<Seat>(`/api/rooms/${code}/join`, post({ name, avatar, token })),
-  act: (seat: Seat, action: string, body?: unknown) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token)),
+  /** `key`: as for create, so a retried join doesn't seat you twice. */
+  join: (code: string, name: string, avatar: Avatar | null, token?: string, key?: string, signal?: AbortSignal) =>
+    request<Seat>(`/api/rooms/${code}/join`, post({ name, avatar, token, key }, undefined, signal)),
+  act: (seat: Seat, action: string, body?: unknown, signal?: AbortSignal) => request<void>(`/api/rooms/${seat.code}/${action}`, post(body, seat.token, signal)),
   prompt: (seat: Seat) => request<{ turn: number; step: number; ops: Op[] }>(`/api/rooms/${seat.code}/prompt`, withToken(seat.token)),
   chains: (code: string) => request<{ chains: { owner: string; entries: ChainEntry[] }[] }>(`/api/rooms/${code}/chains`),
   gallery: (code: string) =>

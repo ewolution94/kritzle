@@ -157,7 +157,7 @@ export function createApi({ games }) {
       if (pathname === '/api/rooms') {
         if (req.method !== 'POST') throw new GameError('method', 405);
         const body = await readJson(req);
-        json(res, 201, games.create({ name: body.name, avatar: body.avatar }));
+        json(res, 201, games.create({ name: body.name, avatar: body.avatar, key: body.key }));
         return true;
       }
 
@@ -200,7 +200,7 @@ export function createApi({ games }) {
       if (req.method !== 'POST') throw new GameError('method', 405);
       const body = await readJson(req, action === 'ink' ? MAX_INK : MAX_BODY);
       if (action === 'join') {
-        json(res, 200, games.join(code, { name: body.name, avatar: body.avatar, token: body.token }));
+        json(res, 200, games.join(code, { name: body.name, avatar: body.avatar, token: body.token, key: body.key }));
         return true;
       }
       games.act(code, req.headers['x-kritzle-token'], action, body);

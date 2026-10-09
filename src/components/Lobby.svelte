@@ -10,6 +10,7 @@
   import { errorText, t, type Key } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
   import { saveAvatar, saveCustom, savedCustom } from '../lib/session';
+  import { actAt } from '../lib/waits';
   import Avatar from './Avatar.svelte';
   import AvatarMaker from './AvatarMaker.svelte';
   import Qr from './Qr.svelte';
@@ -118,10 +119,11 @@
     }
   });
 
-  async function act(action: string, body?: unknown) {
+  /** A move; with the tapped control, the wait shows there (src/lib/waits.ts). */
+  async function act(action: string, body?: unknown, from?: Event) {
     error = '';
     try {
-      await room.act(action, body);
+      await actAt(room, action, body, from);
     } catch (e) {
       error = errorText(e instanceof ApiError ? e.code : 'other');
     }
@@ -182,7 +184,7 @@
             {#if p.bot}<span class="tag bot">{t('bot')}</span>{/if}
           </span>
           {#if isHost && p.id !== view.me && !p.bot}
-            <button class="kick" type="button" aria-label={t('kick', { name: p.name })} onclick={() => act('kick', { player: p.id })}>×</button>
+            <button class="kick" type="button" aria-label={t('kick', { name: p.name })} onclick={(e) => act('kick', { player: p.id }, e)}>×</button>
           {/if}
         </li>
       {/each}
@@ -197,17 +199,17 @@
               {#if !members.length}<span class="hint">{t('nobodyYet')}</span>{/if}
             </span>
             {#if me && me.team !== team}
-              <button class="chip small" type="button" onclick={() => act('team', { team })}>{t('joinTeam')}</button>
+              <button class="chip small" type="button" onclick={(e) => act('team', { team }, e)}>{t('joinTeam')}</button>
             {/if}
           </div>
         {/each}
-        {#if isHost}<button class="chip" type="button" onclick={() => act('shuffle')}>{t('shuffleTeams')}</button>{/if}
+        {#if isHost}<button class="chip" type="button" onclick={(e) => act('shuffle', undefined, e)}>{t('shuffleTeams')}</button>{/if}
       </div>
     {/if}
     {#if isHost}
       <div class="bots">
-        <button class="chip" type="button" onclick={() => act('bot', { add: true })} disabled={bots >= 8}>+ {t('addBot')}</button>
-        {#if bots}<button class="chip" type="button" onclick={() => act('bot', { add: false })}>− {t('removeBot')}</button>{/if}
+        <button class="chip" type="button" onclick={(e) => act('bot', { add: true }, e)} disabled={bots >= 8}>+ {t('addBot')}</button>
+        {#if bots}<button class="chip" type="button" onclick={(e) => act('bot', { add: false }, e)}>− {t('removeBot')}</button>{/if}
         <span class="hint">{t('botsHint')}</span>
       </div>
     {/if}
@@ -350,7 +352,7 @@
 
   <div class="go">
     {#if isHost}
-      <button class="btn primary block" type="button" disabled={view.players.length < minPlayers} onclick={() => act('start')}>{t('start')}</button>
+      <button class="btn primary block" type="button" disabled={view.players.length < minPlayers} onclick={(e) => act('start', undefined, e)}>{t('start')}</button>
       {#if view.players.length < minPlayers}<p class="hint center">{minPlayers === 3 ? t('startNeedsThree') : t('startNeeds')}</p>{/if}
     {:else}
       <p class="waiting display">{t('waitingFor', { name: hostName })}</p>

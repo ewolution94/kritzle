@@ -41,11 +41,22 @@
     path = to;
   }
 
-  function enter(seat: Seat) {
+  /**
+   * Into a room: its stream opens and the screen changes once the first view is there, so the lobby
+   * shows whole. Until then the button that asked holds (Folio's track()); `signal` gives up.
+   */
+  async function enter(seat: Seat, signal?: AbortSignal) {
+    const next = new Room(seat.code, seat);
+    next.connect();
+    try {
+      await next.ready(signal);
+    } catch (error) {
+      next.close();
+      throw error;
+    }
     saveSeat(seat);
     room?.close();
-    room = new Room(seat.code, seat);
-    room.connect();
+    room = next;
     go(`/${seat.code}`);
   }
 
@@ -69,7 +80,9 @@
     if (!seat) return;
     reclaiming = true;
     try {
-      enter(await api.join(c, '', null, seat.token));
+      const ready = new AbortController();
+      const timer = setTimeout(() => ready.abort(), 15_000);
+      await enter(await api.join(c, '', null, seat.token, undefined, ready.signal), ready.signal).finally(() => clearTimeout(timer));
     } catch (error) {
       if (error instanceof ApiError && error.code !== 'offline') forgetSeat(c);
     } finally {
@@ -83,8 +96,16 @@
       room.close();
       room = null;
     }
-    if (code && !room) void reclaim(code);
+    if (code && !room && !reclaiming) void reclaim(code);
   });
+
+  /** The connection, for the pill: quiet while a button already says it (New game, Play). */
+  const connection = $derived(connectionOf(room, reclaiming));
+  function connectionOf(r: Room | null, coming: boolean) {
+    if (coming) return 'connecting';
+    if (!r || r.live) return 'online';
+    return r.wasLive ? 'reconnecting' : 'connecting';
+  }
 
   onMount(() => {
     // An unknown path (an old link, a typo) is the start page.
@@ -111,18 +132,18 @@
     {#if !reclaiming}
       <Join
         {code}
-        onjoin={(seat, name) => {
+        onjoin={async (seat, name, signal) => {
           saveName(name);
-          enter(seat);
+          await enter(seat, signal);
         }}
         onback={() => go('/')}
       />
     {/if}
   {:else}
     <Home
-      oncreate={(seat, name) => {
+      oncreate={async (seat, name, signal) => {
         saveName(name);
-        enter(seat);
+        await enter(seat, signal);
       }}
       onjoin={(c) => go(`/${c}`)}
     />
@@ -130,6 +151,11 @@
 </main>
 
 {#if !playing}<Footer />{/if}
+
+<!-- A room that's gone (a deploy, or forgotten) closed its stream on purpose: no pill, nothing to reconnect. -->
+{#if room?.view?.phase !== 'gone'}
+  <ewo-connection class="connection" state={connection} class:in-turn={playing}></ewo-connection>
+{/if}
 {/if}
 
 <style>
@@ -140,6 +166,17 @@
     min-height: calc(100dvh - var(--bar-h) - 120px);
     margin: 0 auto;
     padding: 8px var(--gutter) 48px;
+  }
+
+  /* The connection pill (Folio's <ewo-connection>): under the bar, or at the top of a turn's stage. */
+  .connection {
+    --ewo-connection-top: calc(env(safe-area-inset-top, 0px) + var(--bar-h) + 8px);
+    --ewo-connection-bg: var(--ink);
+    --ewo-connection-fg: var(--paper);
+    --ewo-connection-font: var(--ewo-sans);
+  }
+  .connection.in-turn {
+    --ewo-connection-top: calc(env(safe-area-inset-top, 0px) + 8px);
   }
 
   /* In the browser (not installed), Safari's toolbar floats over the bottom of the page. */

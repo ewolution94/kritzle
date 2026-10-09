@@ -4,6 +4,7 @@
   import { api, type Config } from '../lib/api';
   import { t } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
+  import { actAt } from '../lib/waits';
   import Final from './Final.svelte';
   import Forger from './Forger.svelte';
   import Telephone from './Telephone.svelte';
@@ -25,9 +26,9 @@
     if (view && view.phase !== 'gone' && view.me === null) onrejoin();
   });
 
-  async function leave() {
+  async function leave(from?: Event) {
     try {
-      await room.act('leave');
+      await actAt(room, 'leave', undefined, from);
     } catch {
       // gone either way
     }
