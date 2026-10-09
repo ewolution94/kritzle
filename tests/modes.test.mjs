@@ -279,3 +279,16 @@ test('Stille Post: needs three; a missing phrase or drawing gets a stand-in when
   assert.equal(r.pages[0].view.turn.stepKind, 'draw');
   assert.ok(r.pages.every((p) => p.view.turn.prompt), 'a suggested word stands in for a missing phrase');
 });
+
+test('the host can end a Fälscher or a Stille Post game midway, too', () => {
+  for (const mode of ['forger', 'telephone']) {
+    const { games } = setup();
+    const r = room(games, 2);
+    games.act(r.code, r.host.token, 'settings', { mode });
+    games.act(r.code, r.host.token, 'start');
+    assert.notEqual(r.pages[0].view.phase, 'lobby', `${mode} started`);
+    games.act(r.code, r.host.token, 'end');
+    assert.equal(r.pages[2].view.phase, 'final', mode);
+    assert.deepEqual(r.pages[2].view.final.ended, { by: r.host.player }, mode);
+  }
+});

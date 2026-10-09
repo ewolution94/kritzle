@@ -163,7 +163,8 @@ export interface View {
   /** Team duel: each team's total. */
   teams: number[] | null;
   turn: Turn | null;
-  final: { awards: Awards | null; drawings: DrawingInfo[] } | null;
+  /** `ended`: the host ended it early (who), else null. */
+  final: { ended: { by: string } | null; awards: Awards | null; drawings: DrawingInfo[] } | null;
   reactions: string[];
   now: number;
 }

@@ -38,6 +38,7 @@
   }
   const ranked = $derived(view ? [...view.players].sort((a, b) => b.score - a.score) : []);
   const tie = $derived(ranked.length > 1 && ranked[0].score === ranked[1].score);
+  const noScores = $derived(Boolean(view?.final?.ended) && ranked.every((p) => p.score === 0));
   const telephone = $derived(view?.game?.mode === 'telephone');
   const teamScores = $derived(view?.teams ? view.teams.map((score, team) => ({ team, score })).sort((a, b) => b.score - a.score) : null);
   const teamTie = $derived(Boolean(teamScores && teamScores.length > 1 && teamScores[0].score === teamScores[1].score));
@@ -93,6 +94,7 @@
     </div>
   {:else if view.phase === 'final'}
     <div class="end">
+      {#if view.final?.ended}<span class="tape ended">{t('endedBy', { name: names.get(view.final.ended.by) ?? '' })}</span>{/if}
       {#if telephone}
         <h2 class="display big"><span class="hl">{t('telephoneEnd')}</span></h2>
         <ul class="crowd">
@@ -113,7 +115,7 @@
           {/each}
         </ol>
       {:else}
-        <h2 class="display big"><span class="hl">{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}</span></h2>
+        <h2 class="display big"><span class="hl">{noScores ? t('gameEnded') : tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}</span></h2>
         <ol>
           {#each ranked.slice(0, 8) as p, i (p.id)}
             <li class:first={i === 0}>
@@ -394,6 +396,11 @@
     flex-direction: column;
     align-items: center;
     gap: 3vh;
+  }
+  .end .ended {
+    margin-top: 3vh;
+    font-size: 1.8vh;
+    transform: rotate(-2deg);
   }
   .end h2 {
     margin: 4vh 0 0;

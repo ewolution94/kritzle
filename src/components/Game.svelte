@@ -51,11 +51,11 @@
 {:else if view.phase === 'final'}
   <Final {room} {view} onleave={leave} />
 {:else if view.turn?.kind === 'telephone'}
-  <Telephone {room} {view} />
+  <Telephone {room} {view} onleave={leave} />
 {:else if view.turn?.kind === 'forger'}
-  <Forger {room} {view} />
+  <Forger {room} {view} onleave={leave} />
 {:else if view.turn}
-  <Turn {room} {view} />
+  <Turn {room} {view} onleave={leave} />
 {/if}
 
 <style>

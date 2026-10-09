@@ -446,6 +446,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   function finalView(r) {
     return {
+      ended: r.ended ?? null,
       awards: r.awards,
       drawings: r.gallery.map((g) => ({
         n: g.n,
@@ -1329,8 +1330,10 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
 
   // ---- the end ------------------------------------------------------------------------------
 
-  function finish(r) {
+  /** @param {{ by: string } | null} ended  the host ended it early (the end screen says so) */
+  function finish(r, ended = null) {
     clearTimers(r);
+    r.ended = ended;
     r.phase = 'final';
     r.turn = null;
     if (r.game) r.game.queue = [];
@@ -1542,6 +1545,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         turn: null,
         gallery: [],
         awards: null,
+        ended: null,
         teamScores: [],
         chat: [],
         chatSeq: 0,
@@ -1795,6 +1799,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
           r.turn = null;
           r.gallery = [];
           r.awards = null;
+          r.ended = null;
           r.teamScores = [];
           for (const q of [...r.players.values()]) {
             if (q.left) r.players.delete(q.id);
@@ -1850,6 +1855,14 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
         }
         case 'leave': {
           removePlayer(r, p);
+          return;
+        }
+        case 'end': {
+          // The host stops a running game for everyone: the end screen with the standings and
+          // the drawings so far, marked as ended early.
+          requireHost(r, p);
+          if (!r.game || r.phase === 'lobby' || r.phase === 'final') throw new GameError('wrong-phase', 409);
+          finish(r, { by: p.id });
           return;
         }
         default:

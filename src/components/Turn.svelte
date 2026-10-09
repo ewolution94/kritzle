@@ -25,7 +25,8 @@
   import Players from './Players.svelte';
   import Settings from './Settings.svelte';
 
-  let { room, view }: { room: Room; view: View } = $props();
+  /** `onleave`: leaving the game (from the settings sheet's "This game"). */
+  let { room, view, onleave }: { room: Room; view: View; onleave: (from: Event) => Promise<void> } = $props();
 
   let tool: Tool = $state('pen');
   let color = $state(0);
@@ -269,7 +270,7 @@
 
 </div>
 
-<Settings open={settingsOpen} onclose={() => (settingsOpen = false)} />
+<Settings open={settingsOpen} onclose={() => (settingsOpen = false)} {room} {onleave} />
 
 <style>
   .stage {

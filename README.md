@@ -42,6 +42,10 @@ afternoon meeting, mostly played on a video call. Live at
   12 s gives up with "Nochmal" right there; a retried New game or join never makes a second room or
   seat. A pill under the bar says when the room's connection is lost (not for a blip) and when it's
   back. Folio's `track()` and `<ewo-connection>`, `development/plans/waiting-states.md`.
+- **Stopping a game:** during a game the settings sheet (the sliders) opens with "This game": the
+  host can end it for everyone, anyone can leave, each after a second tap that says what it does.
+  Ending shows everyone the standings and drawings so far, marked "Ended early by …", and "Play
+  again" goes back to the lobby. The host's skip still moves past a single turn.
 - **Reactions and likes:** six emoji float up over everyone's canvas; a like or dislike per drawing
   feeds the end's awards.
 - **The end:** the podium, awards (most liked, fastest guess, so close, the word nobody got, the

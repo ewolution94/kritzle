@@ -31,6 +31,8 @@
   const ranked = $derived([...view.players].sort((a, b) => b.score - a.score));
   const podium = $derived([ranked[1], ranked[0], ranked[2]].filter(Boolean));
   const tie = $derived(ranked.length > 1 && ranked[0].score === ranked[1].score);
+  /** Ended early before anyone scored: no winner and no tie to call, just the end. */
+  const noScores = $derived(Boolean(view.final?.ended) && ranked.every((p) => p.score === 0));
   const names = $derived(new Map(view.players.map((p) => [p.id, p.name])));
   const isHost = $derived(view.me === view.host);
   const awards = $derived(view.final?.awards ?? {});
@@ -202,9 +204,12 @@
 </script>
 
 <div class="final">
+  {#if view.final?.ended}
+    <span class="tape ended">{t('endedBy', { name: names.get(view.final.ended.by) ?? '' })}</span>
+  {/if}
   <h1 class="display title">
     <span class="hl">
-      {#if telephone}{t('telephoneEnd')}{:else if teamScores}{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}{:else}{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}{/if}
+      {#if noScores}{t('gameEnded')}{:else if telephone}{t('telephoneEnd')}{:else if teamScores}{teamTie ? t('tie') : t('teamWins', { name: teamName(teamScores[0].team) })}{:else}{tie ? t('tie') : t('winner', { name: ranked[0]?.name ?? '' })}{/if}
     </span>
   </h1>
 
@@ -221,7 +226,7 @@
     {#each podium as p (p.id)}
       {@const place = ranked.indexOf(p) + 1}
       <li class="place p{place}">
-        <Avatar avatar={p.avatar} size={place === 1 ? 84 : 64} crown={place === 1} mood={place === 1 ? 'happy' : ''} />
+        <Avatar avatar={p.avatar} size={place === 1 ? 84 : 64} crown={place === 1 && !tie} mood={place === 1 ? 'happy' : ''} />
         <span class="name">{p.name}</span>
         <span class="score">{num(p.score)}</span>
         <span class="block box display">{place}</span>
@@ -320,6 +325,10 @@
     gap: 22px;
     max-width: 900px;
     margin: 8px auto 0;
+  }
+  .ended {
+    align-self: center;
+    transform: rotate(-2deg);
   }
   .title {
     margin: 0;

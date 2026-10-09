@@ -15,7 +15,7 @@ function label(action: string, body: unknown): string | undefined {
       ? add
         ? 'wait_bot_add'
         : 'wait_bot_remove'
-      : (({ start: 'wait_start', team: 'wait_team', shuffle: 'wait_shuffle', rematch: 'wait_rematch', choose: 'wait_choose', vote: 'wait_vote', unmask: 'wait_unmask', tell: 'wait_tell', done: 'wait_tell', leave: 'wait_leave' }) as Record<string, Key>)[action] ?? null;
+      : (({ start: 'wait_start', end: 'wait_end', team: 'wait_team', shuffle: 'wait_shuffle', rematch: 'wait_rematch', choose: 'wait_choose', vote: 'wait_vote', unmask: 'wait_unmask', tell: 'wait_tell', done: 'wait_tell', leave: 'wait_leave' }) as Record<string, Key>)[action] ?? null;
   return key ? t(key) : undefined;
 }
 

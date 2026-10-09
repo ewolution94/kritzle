@@ -286,3 +286,38 @@ test('a retried "New game" or join with the same key gets the same seat, not a s
   // Keys that don't look like keys are ignored.
   assert.notEqual(games.create({ name: 'Anna', key: 'x' }).code, games.create({ name: 'Anna', key: 'x' }).code);
 });
+
+test('the host can end a running game for everyone; it shows the standings so far, marked', () => {
+  const { games } = setup();
+  const r = room(games, 2);
+  const drawer = started(games, r);
+  const [, ben] = r.seats;
+  assert.throws(() => games.act(r.code, ben.token, 'end'), (e) => e instanceof GameError && e.code === 'not-host');
+  games.act(r.code, r.host.token, 'end');
+  const v = r.pages[1].view;
+  assert.equal(v.phase, 'final');
+  assert.deepEqual(v.final.ended, { by: r.host.player });
+  assert.ok(Array.isArray(v.final.drawings));
+  assert.ok(drawer);
+  // Over already: ending again is the wrong moment; Play again clears the mark.
+  assert.throws(() => games.act(r.code, r.host.token, 'end'), (e) => e.code === 'wrong-phase');
+  games.act(r.code, r.host.token, 'rematch');
+  assert.equal(r.pages[0].view.phase, 'lobby');
+  assert.throws(() => games.act(r.code, r.host.token, 'end'), (e) => e.code === 'wrong-phase', 'nothing to end in the lobby');
+});
+
+test('a game that ends on its own is not marked as ended early', () => {
+  const { clock, games } = setup();
+  const host = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0] });
+  const page = watch(games, host.code, host.player);
+  games.act(host.code, host.token, 'settings', { rounds: 2 });
+  games.act(host.code, host.token, 'bot', { add: true });
+  games.act(host.code, host.token, 'start');
+  for (let i = 0; i < 400 && page.view.phase !== 'final'; i++) {
+    if (page.view.turn?.drawer === host.player && page.view.phase === 'choose') games.act(host.code, host.token, 'choose', { index: 0 });
+    clock.advance(1000);
+    games.tick();
+  }
+  assert.equal(page.view.phase, 'final');
+  assert.equal(page.view.final.ended, null);
+});
