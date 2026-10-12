@@ -254,46 +254,54 @@ button {
 
 /* The logo (Logo.svelte): Caveat Brush on the highlighter, redrawn a few times a second like a
    cartoon frame (the filters are in index.html). Three copies, each drawn once through its own
-   filter, are stacked on their own layers and stepped by opacity: animating `filter: url()` itself
-   restyled the page every frame and redrew the turbulence seven times a second. Still, and
-   unfiltered, during a turn and under reduced motion. */
+   filter, sit side by side on one strip that steps past a window one copy wide: animating
+   `filter: url()` itself restyled the page every frame, and three stacked copies with their own
+   opacity steps now and then showed none at once, the logo blinking out (2026-10-12). Keep it one
+   strip with one stepped animation. The window reaches 8px past the word on each side, so the
+   filter's wobble at the edges isn't cut; an invisible copy keeps the box. Still, and unfiltered,
+   during a turn and under reduced motion. */
 .logo {
+  position: relative;
   display: inline-grid;
   font: 400 30px/1 var(--display);
   white-space: nowrap;
-}
-.logo > span {
-  grid-area: 1 / 1;
-  will-change: opacity;
 }
 .logo .ink {
   padding: 0 4px;
   background: linear-gradient(transparent 52%, var(--hi) 52% 88%, transparent 88%);
 }
-.logo > span:nth-child(1) {
-  animation: boil 0.42s steps(1) infinite;
-}
-.logo > span:nth-child(2) {
-  animation: boil 0.42s -0.28s steps(1) infinite;
-}
-.logo > span:nth-child(3) {
-  animation: boil 0.42s -0.14s steps(1) infinite;
-}
-.logo > span:nth-child(1) .ink { filter: url(#boil0); }
-.logo > span:nth-child(2) .ink { filter: url(#boil1); }
-.logo > span:nth-child(3) .ink { filter: url(#boil2); }
-@keyframes boil {
-  0% { opacity: 1; }
-  33.33% { opacity: 0; }
-  100% { opacity: 0; }
-}
-:root[data-playing] .logo > span {
-  animation: none;
-}
-:root[data-playing] .logo > span:nth-child(n + 2) {
+.logo .sizer {
   visibility: hidden;
 }
-:root[data-playing] .logo .ink {
+.logo .reel {
+  position: absolute;
+  inset: 0 -8px;
+  overflow-x: clip;
+}
+.logo .strip {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  animation: logo-boil 0.42s steps(3) infinite;
+}
+.logo .cell {
+  display: block;
+  flex: 0 0 calc(100% / 3);
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+.logo .cell:nth-child(1) .ink { filter: url(#boil0); }
+.logo .cell:nth-child(2) .ink { filter: url(#boil1); }
+.logo .cell:nth-child(3) .ink { filter: url(#boil2); }
+@keyframes logo-boil {
+  to {
+    translate: -100% 0;
+  }
+}
+:root[data-playing] .logo .strip {
+  animation: none;
+}
+:root[data-playing] .logo .cell .ink {
   filter: none;
 }
 
@@ -355,13 +363,10 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .logo > span {
+  .logo .strip {
     animation: none !important;
   }
-  .logo > span:nth-child(n + 2) {
-    visibility: hidden;
-  }
-  .logo > span:nth-child(n) .ink {
+  .logo .cell .ink {
     filter: none;
   }
 }
