@@ -264,7 +264,7 @@
   </div>
 
   <section class="gallery">
-    <h2><span class="display">{t('gallery')}</span><span class="label">{t('galleryCount', { n: drawings.length })}</span></h2>
+    <h2><span class="display">{t('gallery')}</span><span class="label">{drawings.length === 1 ? t('galleryCountOne') : t('galleryCount', { n: drawings.length })}</span></h2>
     {#if loading}
       <p class="label">{t('loadingGallery')}</p>
     {:else}
@@ -408,7 +408,9 @@
     width: 100%;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+    /* One em: a taller line overflowed the third place's block at the bottom and sat the number low. */
     font-size: 34px;
+    line-height: 1;
   }
   .p1 .block {
     height: 96px;
