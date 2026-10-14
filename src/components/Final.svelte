@@ -463,6 +463,18 @@
     padding: 10px 12px;
     font-size: 14px;
   }
+  /* The label and the line under it centre their ink, not their line boxes: the line's taller box
+     kept more room under its baseline than the label kept over its caps, and the pair sat 1.1 px high.
+     The trimmed room goes back into the gap and the padding (development/plans/text-centering.md). */
+  @supports (text-box: trim-both cap alphabetic) {
+    .awards li {
+      gap: 12px;
+      padding-block: 14px;
+    }
+    .awards li > span {
+      text-box: trim-both cap alphabetic;
+    }
+  }
   .actions {
     display: flex;
     flex-direction: column;

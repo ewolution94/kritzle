@@ -503,6 +503,18 @@
     font: 600 11px/1 var(--ewo-mono);
     color: var(--mute);
   }
+  /* The word and the multiplier under it centre their ink, not their line boxes: Caveat Brush keeps
+     more room over its caps than the small mono keeps under its baseline, and the pair sat 1–1.4 px
+     low in its button. The trimmed room goes back into the gap (development/plans/text-centering.md). */
+  @supports (text-box: trim-both cap alphabetic) {
+    .choice {
+      gap: 9px;
+    }
+    .choice .display,
+    .mult {
+      text-box: trim-both cap alphabetic;
+    }
+  }
   .waiting {
     display: flex;
     flex-direction: column;
