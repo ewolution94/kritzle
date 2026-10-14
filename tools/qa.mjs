@@ -4,16 +4,16 @@
 // the chat, the settings sheet in a turn, the right guess, the reveal), Team duel, Fälscher (strokes,
 // the vote, the unmasking, the reveal) and Stille Post (a sentence, a drawing, the showcase), each to
 // its end screen and back to the lobby. Each shot checks for anything past the right edge and console
-// errors; AUDIT=1 also checks that every label sits in the middle of its box (tools/text-audit.mjs,
-// development/plans/text-centering.md). Not part of CI: Playwright is borrowed from Folio's checkout
-// next door (the workspace's `folio/node_modules`, WebKit already installed; PLAYWRIGHT=<path> from a
-// worktree).
+// errors; AUDIT=1 also checks that every label, and every stack of lines in a box, sits in the middle
+// of its box (tools/text-audit.mjs, development/plans/text-centering.md). Not part of CI: Playwright is
+// borrowed from Folio's checkout next door (the workspace's `folio/node_modules`, WebKit already
+// installed; PLAYWRIGHT=<path> from a worktree).
 //
 //   npm run build && node server/server.mjs --port 6111     (or the kritzle-prod preview)
 //   node tools/qa.mjs [base] [outdir]          W=390 H=844 LANG_UI=de by default
 //   AUDIT=1 node tools/qa.mjs …                  plus the text audits at every shot
 import { mkdirSync } from 'node:fs';
-import { digitAudit, textAudit } from './text-audit.mjs';
+import { digitAudit, stackAudit, textAudit } from './text-audit.mjs';
 
 const { webkit } = await import(process.env.PLAYWRIGHT ?? '../../folio/node_modules/playwright/index.mjs');
 
@@ -27,7 +27,13 @@ const AUDIT = process.env.AUDIT ? Number(process.env.AUDIT) : 0;
 // its edge (the row is centred in what the tape leaves), and the chat's "the word was" line is a
 // dashed rule above a line of text, not a box.
 const AUDIT_SKIP = ['.reveal.box', 'li.word'];
+// Not stacks to centre either: a turn's top bar holds its status column beside the clock above a
+// rule (measured by hand: the column sits within 0.7 px of the middle between the top and the rule at
+// 390 px, the clock's number 0.2 px from its ring's middle; on a wide screen it's one row), and the
+// settings sheet's "This game" is a section (a heading, its buttons, a hint under them) over a rule.
+const STACK_SKIP = [...AUDIT_SKIP, 'header.top', 'section.game'];
 const offCentre = new Map();
+const offStacks = new Map();
 const oldDigits = new Map();
 mkdirSync(OUT, { recursive: true });
 
@@ -64,6 +70,10 @@ async function shot(p, label) {
     for (const row of await p.page.evaluate(textAudit, { min: AUDIT, skip: AUDIT_SKIP })) {
       const key = `${row.where} | ${row.text}`;
       if (!offCentre.has(key)) offCentre.set(key, { ...row, at: `${p.name} ${label}` });
+    }
+    for (const row of await p.page.evaluate(stackAudit, { min: AUDIT, skip: STACK_SKIP })) {
+      const key = `${row.where} | ${row.text}`;
+      if (!offStacks.has(key)) offStacks.set(key, { ...row, at: `${p.name} ${label}` });
     }
     for (const row of await p.page.evaluate(digitAudit)) {
       const key = `${row.where} | ${row.text}`;
@@ -338,9 +348,12 @@ if (AUDIT) {
   say(`\ntext off its box's middle (≥ ${AUDIT} px; + low, − high; bias = the font's share):`);
   for (const r of offCentre.values()) say(`  ${String(r.off).padStart(5)} (bias ${r.bias})  ${r.font} h${r.height}  ${r.where}  "${r.text}"  [${r.at}]`);
   if (!offCentre.size) say('  none');
+  say('stacked lines off their box\'s middle (as one block, cap height to last baseline):');
+  for (const r of offStacks.values()) say(`  ${String(r.off).padStart(5)}  ${r.lines} lines h${r.height}  ${r.where}  "${r.text}"  [${r.at}]`);
+  if (!offStacks.size) say('  none');
   say('old-style digits:');
   for (const r of oldDigits.values()) say(`  ${r.font}  ${r.where}  "${r.text}"  [${r.at}]`);
   if (!oldDigits.size) say('  none');
 }
 say(problems.length ? `\nproblems:\n  ${problems.join('\n  ')}` : '\nno problems');
-process.exit(problems.length || offCentre.size || oldDigits.size ? 1 : 0);
+process.exit(problems.length || offCentre.size || offStacks.size || oldDigits.size ? 1 : 0);
