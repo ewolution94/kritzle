@@ -9,7 +9,7 @@
 
 :root,
 :root[data-theme='dark'] {
-  color-scheme: light;
+  color-scheme: only light;
   --ewo-light: 1;
 
   --paper: #fdfdfb;
