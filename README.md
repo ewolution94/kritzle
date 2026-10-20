@@ -119,7 +119,8 @@ afternoon meeting, mostly played on a video call. Live at
 npm install
 npm run dev          # http://localhost:6110, the game server included
 npm run check        # svelte-check / TypeScript
-npm test             # unit tests: the game, guesses, points, ink, words, Census (Node 24+)
+npm test             # unit tests: the game, guesses, points, ink, words, Census (Node 24+; CI runs these)
+npm run test:sim     # the simulated games: whole games through a room by bots, a Team duel (local only)
 npm run build && npm start   # production server on :8080 (or --port 6111)
 ```
 
@@ -127,7 +128,7 @@ npm run build && npm start   # production server on :8080 (or --port 6111)
 
 This mirrors Schätzle and Vollmond:
 
-- `ci.yml` runs the typecheck, the tests and the build, then smoke-tests the production server
+- `ci.yml` runs the typecheck, the unit tests and the build, then smoke-tests the production server
   (page, headers, a room, a second player, a bot, a started game on the live stream; Fälscher, Team
   duel and Stille Post each start).
 - `docker-publish.yml` gates on `ci.yml`, then pushes `ghcr.io/ewolution94/kritzle:latest` for amd64

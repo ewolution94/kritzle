@@ -160,39 +160,6 @@ test('ink: only the drawer draws; everyone else gets it; a late page gets the wh
   assert.deepEqual(late.canvas.at(-1), { turn: n, team: null, ops: [['s', 1, 2, 1, 10, 10, 0], ['p', 1, 20, 20, 16], ['f', 5, [10, 20, FILL_W * FILL_H - 30], 40]] });
 });
 
-test('a whole game with bots: every player draws each round, then the podium and the gallery', () => {
-  const { games, clock } = setup();
-  const host = games.create({ name: 'Anna' });
-  const page = watch(games, host.code, host.player);
-  games.act(host.code, host.token, 'bot', { add: true });
-  games.act(host.code, host.token, 'bot', { add: true });
-  games.act(host.code, host.token, 'settings', { rounds: 2, seconds: 30 });
-  assert.equal(page.view.players.filter((p) => p.bot).length, 2);
-  games.act(host.code, host.token, 'start');
-  const drawers = [];
-  for (let step = 0; step < 400 && page.view.phase !== 'final'; step++) {
-    const v = page.view;
-    if (v.phase === 'choose' && v.turn.drawer === host.player && v.turn.choices) {
-      drawers.push(host.player);
-      games.act(host.code, host.token, 'choose', { index: 0 });
-      games.act(host.code, host.token, 'ink', { turn: page.view.turn.n, ops: [['s', 1, 0, 1, 100, 100, 0], ['p', 1, 200, 200, 30]] });
-      continue;
-    }
-    if (v.phase === 'draw' && v.turn.drawer !== host.player && !drawers.includes(`${v.turn.n}`)) drawers.push(`${v.turn.n}`);
-    clock.advance(1000);
-  }
-  assert.equal(page.view.phase, 'final');
-  const final = page.view.final;
-  assert.equal(final.drawings.length, 6, 'three players, two rounds');
-  assert.ok(final.awards);
-  const gallery = games.gallery(host.code);
-  assert.equal(gallery.length, 6);
-  assert.ok(gallery.some((g) => g.ops.length > 0));
-  games.act(host.code, host.token, 'rematch');
-  assert.equal(page.view.phase, 'lobby');
-  assert.ok(page.view.players.every((p) => p.score === 0));
-});
-
 test('a drawer who leaves ends the turn; the host hands over and a lone player ends the game', () => {
   const { games } = setup();
   const r = room(games, 2);
@@ -304,20 +271,4 @@ test('the host can end a running game for everyone; it shows the standings so fa
   games.act(r.code, r.host.token, 'rematch');
   assert.equal(r.pages[0].view.phase, 'lobby');
   assert.throws(() => games.act(r.code, r.host.token, 'end'), (e) => e.code === 'wrong-phase', 'nothing to end in the lobby');
-});
-
-test('a game that ends on its own is not marked as ended early', () => {
-  const { clock, games } = setup();
-  const host = games.create({ name: 'Anna', avatar: [1, 0, 0, 0, 0] });
-  const page = watch(games, host.code, host.player);
-  games.act(host.code, host.token, 'settings', { rounds: 2 });
-  games.act(host.code, host.token, 'bot', { add: true });
-  games.act(host.code, host.token, 'start');
-  for (let i = 0; i < 400 && page.view.phase !== 'final'; i++) {
-    if (page.view.turn?.drawer === host.player && page.view.phase === 'choose') games.act(host.code, host.token, 'choose', { index: 0 });
-    clock.advance(1000);
-    games.tick();
-  }
-  assert.equal(page.view.phase, 'final');
-  assert.equal(page.view.final.ended, null);
 });

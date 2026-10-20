@@ -209,19 +209,6 @@ test('Team duel: ink and chat stay in the team; the first team to guess scores m
   assert.ok(pageOf(r, bMate.id).canvas.some((c) => c.team === a.team && c.turn === t.n));
 });
 
-test('Team duel: a whole game to the end, one gallery drawing per team and turn', () => {
-  const { games, clock, r } = duelGame();
-  for (let i = 0; i < 300 && r.pages[0].view.phase !== 'final'; i++) {
-    const v = r.pages[0].view;
-    if (v.phase === 'draw') games.act(r.code, r.host.token, 'skip');
-    clock.advance(1000);
-  }
-  assert.equal(r.pages[0].view.phase, 'final');
-  // Two rounds, two members per team: four turns, two drawings each.
-  assert.equal(r.pages[0].view.final.drawings.length, 8);
-  assert.ok(r.pages[0].view.final.drawings.every((d) => d.kind === 'duel' && d.team !== null));
-});
-
 test('Stille Post: write, draw, describe; every chain passes everyone; nobody sees a drawing until the end', () => {
   const { games, clock } = setup();
   const r = room(games, 2);
