@@ -2,6 +2,8 @@
 // spaces and hyphens never decide; a word's aliases count too ("Handy|Smartphone"). "Close" is
 // one edit away, two from eight letters on. Combination mode ("Hund + Hut") wants both words.
 
+import { randomInt as cryptoInt } from 'node:crypto';
+
 /** @typedef {{ word: string, answers: string[], difficulty: 'easy' | 'medium' | 'hard', pack: string, parts?: Entry[] }} Entry */
 
 /** Lowercase letters and digits only, with ä→ae, ö→oe, ü→ue, ß→ss and accents dropped. */
@@ -80,13 +82,14 @@ export function pattern(word, revealed) {
 
 /**
  * The order hints uncover letters in: a random order of the word's letters, cut to at most half
- * of them, so a hint never gives the whole word away.
- * @param {string} word  @param {number} count  @param {() => number} random
+ * of them, so a hint never gives the whole word away. Fisher–Yates on whole numbers: randomInt(n)
+ * → 0..n-1, node:crypto's unless a test seeds it.
+ * @param {string} word  @param {number} count  @param {(n: number) => number} [randomInt]
  */
-export function hintOrder(word, count, random = Math.random) {
+export function hintOrder(word, count, randomInt = (n) => cryptoInt(n)) {
   const letters = letterIndexes(word);
   for (let i = letters.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
+    const j = randomInt(i + 1);
     [letters[i], letters[j]] = [letters[j], letters[i]];
   }
   return letters.slice(0, Math.min(count, Math.floor(letters.length / 2)));

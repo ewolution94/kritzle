@@ -737,7 +737,7 @@ export function createGames({ clock = realClock, randomInt = (n) => cryptoInt(n)
     t.phase = 'draw';
     t.startsAt = now;
     t.endsAt = now + total;
-    t.hints = hintOrder(t.entry.word, r.settings.hints, random);
+    t.hints = hintOrder(t.entry.word, r.settings.hints, randomInt);
     t.hintAt = hintTimes(t.hints.length, total, r.game.mode === 'blitz');
     r.phase = 'draw';
     later(r, total, () => (t.kind === 'duel' ? endDuel(r, 'time') : endTurn(r, 'time')));

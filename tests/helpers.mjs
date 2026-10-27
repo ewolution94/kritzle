@@ -30,13 +30,35 @@ export function fakeClock(start = 1_000_000) {
   };
 }
 
-/** A repeatable random integer below n. */
-export function seededInt(seed = 1) {
-  let s = seed >>> 0;
-  return (n) => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return Math.floor((s / 2 ** 32) * n);
+/** mulberry32's 32-bit words: the same sequence for the same seed. */
+export function words(seed = 1) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t ^ (t >>> 14)) >>> 0;
   };
+}
+
+/**
+ * An integer in 0..n-1 from 32-bit words, exactly uniform: a word at or past the last full multiple
+ * of n is drawn again, the way node:crypto's randomInt does it (learnings/randomness.md in the
+ * workspace). Scaling or taking the word modulo n would favour the low numbers.
+ * @param {number} n  @param {() => number} word
+ */
+export function fairInt(n, word) {
+  if (!Number.isInteger(n) || n < 1 || n > 0x100000000) throw new RangeError('fairInt needs an integer 1 ≤ n ≤ 2^32');
+  const limit = Math.floor(0x100000000 / n) * n;
+  let w = word() >>> 0;
+  while (w >= limit) w = word() >>> 0;
+  return w % n;
+}
+
+/** A repeatable randomInt(n) → 0..n-1, for the rooms in place of node:crypto's. */
+export function seededInt(seed = 1) {
+  const word = words(seed);
+  return (n) => fairInt(n, word);
 }
 
 export function setup() {

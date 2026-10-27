@@ -52,7 +52,7 @@ test('the blanks keep spaces, hyphens and the plus; hints never give away more t
   assert.equal(pattern('T-Shirt', new Set([0])), 'T-_____');
   assert.equal(pattern('Hund + Hut', new Set()), '____ + ___');
   assert.deepEqual(letterIndexes('A-B c'), [0, 2, 4]);
-  const order = hintOrder('Leuchtturm', 5, () => 0.3);
+  const order = hintOrder('Leuchtturm', 5, (n) => Math.floor(n * 0.3));
   assert.equal(order.length, 5);
   assert.equal(new Set(order).size, 5);
   assert.equal(hintOrder('Ei', 3).length, 1);
