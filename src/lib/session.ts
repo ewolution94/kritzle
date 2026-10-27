@@ -1,9 +1,12 @@
 // What a device remembers: the name and avatar you play under, the host's own words, and your seat
 // in each room (so a reload, or the phone locking mid-game, puts you back in the same seat with
-// your score). Storage can be blocked; then nothing is remembered and everything still works.
+// your score). The name and the avatar also go to Folio's shared cookie, so they follow you to the
+// other ewolution games (development/plans/emblems.md). Storage can be blocked; then nothing is
+// remembered and everything still works.
 
 import type { Seat } from './api';
-import { isAvatar, randomAvatar, type Avatar } from './avatar';
+import type { Avatar } from './avatar';
+import { playerEmblem, shareEmblem, sharedName, shareName } from '../../vendor/ewo/elements/emblem-shared.js';
 
 const NAME = 'kritzle:name';
 const AVATAR = 'kritzle:avatar';
@@ -27,22 +30,33 @@ function write(key: string, value: string | null) {
   }
 }
 
-export const savedName = () => read(NAME) ?? '';
-export const saveName = (name: string) => write(NAME, name.trim() || null);
+/** The name field's maxlength: a name from another game may be longer. */
+const NAME_MAX = 16;
 
-/** Your avatar; a random one (kept from then on) the first time. */
-export function savedAvatar(): Avatar {
-  try {
-    const value = JSON.parse(read(AVATAR) ?? 'null');
-    if (isAvatar(value)) return value;
-  } catch {
-    // a new one below
-  }
-  const fresh = randomAvatar();
-  saveAvatar(fresh);
-  return fresh;
+/** The name you last joined with, here or in another ewolution game. */
+export const savedName = () => (sharedName() || read(NAME) || '').slice(0, NAME_MAX);
+export function saveName(name: string) {
+  write(NAME, name.trim() || null);
+  shareName(name);
 }
-export const saveAvatar = (a: Avatar) => write(AVATAR, JSON.stringify(a));
+
+/** Your face: the one you last picked (kept in the shared cookie too), else this game's own, else a random one (kept from then on). */
+export function savedAvatar(): Avatar {
+  let own: unknown = null;
+  try {
+    own = JSON.parse(read(AVATAR) ?? 'null');
+  } catch {
+    // a new one
+  }
+  const avatar = playerEmblem('doodle', own) as Avatar;
+  write(AVATAR, JSON.stringify(avatar));
+  return avatar;
+}
+/** An avatar picked in the maker: kept here and shared with the other games. */
+export function saveAvatar(a: Avatar) {
+  write(AVATAR, JSON.stringify(a));
+  shareEmblem('doodle', a);
+}
 
 /** The host's own words, kept for the next game they host. */
 export const savedCustom = () => read(CUSTOM) ?? '';
