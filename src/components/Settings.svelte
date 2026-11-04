@@ -9,7 +9,7 @@
 <script lang="ts">
   import { themeShift } from '../../vendor/ewo/elements/theme-shift.js';
   import { ApiError } from '../lib/api';
-  import { errorText, i18n, setLanguage, systemLang, t, type LangChoice } from '../lib/i18n.svelte';
+  import { defaultLang, errorText, i18n, setLanguage, t, type LangChoice } from '../lib/i18n.svelte';
   import type { Room } from '../lib/room.svelte';
   import { play, setSound, sound } from '../lib/sound.svelte';
   import { actAt } from '../lib/waits';
@@ -65,11 +65,11 @@
 
   /**
    * The picked control updates at once; the page changes under themeShift's veil when it really
-   * changes, and at once when it doesn't (System while the system already shows that language).
+   * changes, and at once when it doesn't (Default while the page already shows that language).
    */
   function pickLanguage(next: LangChoice) {
     if (next === i18n.choice) return;
-    const shows = next === 'system' ? systemLang() : next;
+    const shows = next === 'system' ? defaultLang() : next;
     if (shows === i18n.lang) setLanguage(next);
     else themeShift(() => setLanguage(next));
   }

@@ -10,13 +10,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# The server has zero dependencies, so the runtime image is just Node + the built app.
+# The server has zero dependencies, so the runtime image is just Node + the built app, plus
+# Folio's config helper (Dashboard's defaults).
 # Kritzle keeps no state on disk: games and drawings live in memory and end with the container.
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080 TZ=Europe/Berlin
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY vendor/ewo/elements/config-server.js vendor/ewo/elements/config-core.js ./vendor/ewo/elements/
 COPY package.json ./
 USER node
 EXPOSE 8080

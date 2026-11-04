@@ -1,10 +1,19 @@
-// Applies the saved language before first paint (the family's key `ewo:lang`; no key means
-// System). Kritzle is light only (development/plans/kritzle.md), so a saved theme is left alone.
-// Keep in step with src/lib/i18n.svelte.ts (systemLang).
+// Applies the language before first paint: the one saved on this device (the family's key
+// `ewo:lang`; no key means Default), else Dashboard's (#ewo-config, which the server puts first in
+// <head>), else the browser's. Kritzle is light only (development/plans/kritzle.md), so a saved
+// theme is left alone. Keep in step with src/lib/defaults.ts and src/lib/i18n.svelte.ts (systemLang).
+var ewoConfig = {};
 try {
-  var lang = localStorage.getItem('ewo:lang');
+  ewoConfig = JSON.parse(document.getElementById('ewo-config').textContent) || {};
+} catch (e) {}
+try {
+  var lang;
+  try {
+    lang = localStorage.getItem('ewo:lang');
+  } catch (e) {}
+  if (lang !== 'en' && lang !== 'de') lang = ewoConfig.lang;
   if (lang !== 'en' && lang !== 'de') {
-    // System: the first of the browser's languages the game speaks, English otherwise.
+    // Default without Dashboard's: the first of the browser's languages the game speaks, English otherwise.
     var tags = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
     lang = 'en';
     for (var j = 0; j < tags.length; j++) {
